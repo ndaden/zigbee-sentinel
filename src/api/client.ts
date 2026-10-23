@@ -26,7 +26,7 @@ export const apiClient = {
   async fetchDevices(): Promise<ZigbeeDevice[]> {
     const res = await fetch('/api/devices', {
       method: 'GET',
-      headers: { credentials: 'omit' },
+      credentials: 'omit',
     });
     return handleResponse<ZigbeeDevice[]>(res);
   },
