@@ -1,0 +1,17 @@
+node_modules
+dist
+data
+*.db
+*.db-journal
+.git
+.github
+.superpowers
+.env
+.env.local
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+tests
+coverage

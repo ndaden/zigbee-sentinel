@@ -1,0 +1,22 @@
+services:
+  zigbee-sentinel:
+    container_name: zigbee-sentinel
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Using host networking is essential when deployed on Raspberry Pi alongside Jeedom:
+    # 1. Allows direct connection to the local Mosquitto broker on 127.0.0.1:1883.
+    # 2. Exposes port 8090 directly on the host network without docker-proxy overhead.
+    network_mode: host
+    environment:
+      - PORT=8090
+      - MQTT_URL=mqtt://127.0.0.1:1883
+      - Z2M_BASE_TOPIC=zigbee2mqtt
+      - DATABASE_PATH=/app/data/zigbee_sentinel.db
+      - HISTORY_RETENTION_DAYS=60
+      # Optional MQTT authentication (uncomment and configure if your Mosquitto broker requires it)
+      # - MQTT_USERNAME=
+      # - MQTT_PASSWORD=
+    volumes:
+      - ./data:/app/data
