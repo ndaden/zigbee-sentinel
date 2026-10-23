@@ -6,11 +6,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ndaden/zigbee-sentinel/actions/workflows/docker-publish.yml">
+    <img src="https://github.com/ndaden/zigbee-sentinel/actions/workflows/docker-publish.yml/badge.svg" alt="Build & Publish Docker Image" />
+  </a>
+  <img src="https://img.shields.io/badge/Docker_Image-ghcr.io-blue.svg?logo=docker" alt="GHCR Image" />
   <img src="https://img.shields.io/badge/Node.js-20_LTS-green.svg" alt="Node.js 20 LTS" />
   <img src="https://img.shields.io/badge/React-18-blue.svg" alt="React 18" />
   <img src="https://img.shields.io/badge/Fastify-4-black.svg" alt="Fastify 4" />
   <img src="https://img.shields.io/badge/SQLite-better--sqlite3-orange.svg" alt="SQLite" />
-  <img src="https://img.shields.io/badge/Docker-Multi--stage_Alpine-blue.svg" alt="Docker Alpine" />
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT" />
 </p>
 
@@ -23,17 +26,19 @@
   - [2. Problématique résolue & Zéro interférence avec Jeedom](#2-problématique-résolue--zéro-interférence-avec-jeedom)
   - [3. Fonctionnalités](#3-fonctionnalités)
   - [4. Test local sans matériel (Mode Mock)](#4-test-local-sans-matériel-mode-mock)
-  - [5. Déploiement sur Raspberry Pi avec Docker Compose](#5-déploiement-sur-raspberry-pi-avec-docker-compose)
-  - [6. Déploiement alternatif Bare-Metal (PM2 / Systemd)](#6-déploiement-alternatif-bare-metal-pm2--systemd)
-  - [7. Tableau de référence des variables d'environnement](#7-tableau-de-référence-des-variables-denvironnement)
+  - [5. Déploiement avec Portainer (Recommandé)](#5-déploiement-avec-portainer-recommandé)
+  - [6. Déploiement sur Raspberry Pi avec Docker Compose](#6-déploiement-sur-raspberry-pi-avec-docker-compose)
+  - [7. Déploiement alternatif Bare-Metal (PM2 / Systemd)](#7-déploiement-alternatif-bare-metal-pm2--systemd)
+  - [8. Tableau de référence des variables d'environnement](#8-tableau-de-référence-des-variables-denvironnement)
 - [🇬🇧 English](#-english)
   - [1. Overview of Zigbee Sentinel](#1-overview-of-zigbee-sentinel)
   - [2. Problem Solved & Zero Interference with Jeedom](#2-problem-solved--zero-interference-with-jeedom)
   - [3. Features](#3-features)
   - [4. Local Testing without Hardware (Mock Mode)](#4-local-testing-without-hardware-mock-mode)
-  - [5. Raspberry Pi Deployment with Docker Compose](#5-raspberry-pi-deployment-with-docker-compose)
-  - [6. Alternative Bare-Metal Deployment (PM2 / Systemd)](#6-alternative-bare-metal-deployment-pm2--systemd)
-  - [7. Configuration Reference Table](#7-configuration-reference-table)
+  - [5. Deployment with Portainer (Recommended)](#5-deployment-with-portainer-recommended)
+  - [6. Raspberry Pi Deployment with Docker Compose](#6-raspberry-pi-deployment-with-docker-compose)
+  - [7. Alternative Bare-Metal Deployment (PM2 / Systemd)](#7-alternative-bare-metal-deployment-pm2--systemd)
+  - [8. Configuration Reference Table](#8-configuration-reference-table)
 
 ---
 
@@ -162,7 +167,53 @@ La suite Vitest exécute **105 tests** couvrant l'analyse MQTT, la base de donn�
 
 ---
 
-## 5. Déploiement sur Raspberry Pi avec Docker Compose
+## 5. Déploiement avec Portainer (Recommandé)
+
+Si vous gérez vos conteneurs Docker sur le Raspberry Pi avec **Portainer**, le déploiement se fait en **3 clics** sans avoir besoin de vous connecter en SSH.
+
+L'image Docker multi-architecture (`linux/amd64`, `linux/arm64`) est automatiquement compilée et publiée sur le registre GitHub (`ghcr.io/ndaden/zigbee-sentinel:latest`).
+
+### Procédure dans Portainer :
+
+1. Connectez-vous à votre interface **Portainer** (ex: `http://jeedom.local:9000` ou `http://<IP_RASPBERRY>:9000`).
+2. Dans le menu de gauche, cliquez sur **Stacks** puis sur le bouton **+ Add stack**.
+3. Donnez un nom à votre stack : `zigbee-sentinel`.
+4. Sélectionnez l'onglet **Web editor** et collez le contenu suivant (disponible dans le fichier [`portainer-stack.yml`](portainer-stack.yml)) :
+
+```yaml
+version: '3.8'
+
+services:
+  zigbee-sentinel:
+    image: ghcr.io/ndaden/zigbee-sentinel:latest
+    container_name: zigbee-sentinel
+    restart: unless-stopped
+    # Mode host indispensable pour communiquer directement avec Mosquitto sur 127.0.0.1:1883
+    network_mode: host
+    environment:
+      - PORT=8090
+      - MQTT_URL=mqtt://127.0.0.1:1883
+      - Z2M_BASE_TOPIC=zigbee2mqtt
+      - DATABASE_PATH=/app/data/zigbee_sentinel.db
+      - HISTORY_RETENTION_DAYS=60
+    volumes:
+      - zigbee-sentinel-data:/app/data
+
+volumes:
+  zigbee-sentinel-data:
+    name: zigbee-sentinel-data
+```
+
+5. Cliquez sur le bouton bleu **Deploy the stack** en bas de page.
+6. Portainer télécharge l'image Docker pré-compilée et lance le conteneur.
+7. Ouvrez votre navigateur sur **`http://<IP_DE_VOTRE_RASPBERRY_PI>:8090`**.
+
+> [!TIP]
+> **Mises à jour automatiques :** Pour mettre à jour Zigbee Sentinel lorsqu'une nouvelle version est publiée, ouvrez votre stack dans Portainer, cliquez sur **Editor**, puis cochez l'option **Re-pull image** et cliquez sur **Update the stack**.
+
+---
+
+## 6. Déploiement sur Raspberry Pi avec Docker Compose
 
 C'est la méthode de déploiement **recommandée** sur Raspberry Pi : elle isole complètement les dépendances de Zigbee Sentinel sans impacter l'environnement système de Jeedom.
 
@@ -236,7 +287,7 @@ Ouvrez un navigateur sur votre réseau local :
 
 ---
 
-## 6. Déploiement alternatif Bare-Metal (PM2 / Systemd)
+## 7. Déploiement alternatif Bare-Metal (PM2 / Systemd)
 
 Si vous préférez exécuter Zigbee Sentinel directement sous l'OS de votre Raspberry Pi (sans Docker) :
 
@@ -309,7 +360,7 @@ sudo systemctl status zigbee-sentinel
 
 ---
 
-## 7. Tableau de référence des variables d'environnement
+## 8. Tableau de référence des variables d'environnement
 
 Toutes les options de configuration peuvent être définies dans un fichier `.env` ou passées comme variables d'environnement au conteneur Docker :
 
@@ -451,7 +502,53 @@ Vitest executes all **105 automated unit, integration, and E2E tests**.
 
 ---
 
-## 5. Raspberry Pi Deployment with Docker Compose
+## 5. Deployment with Portainer (Recommended)
+
+If you manage your Docker containers with **Portainer** on your Raspberry Pi, deploying Zigbee Sentinel takes only a few clicks.
+
+Multi-architecture Docker images (`linux/amd64`, `linux/arm64`) are automatically compiled and published to the GitHub Container Registry (`ghcr.io/ndaden/zigbee-sentinel:latest`).
+
+### Portainer Setup:
+
+1. Open your **Portainer** web interface (e.g. `http://jeedom.local:9000` or `http://<RASPBERRY_IP>:9000`).
+2. In the left navigation bar, click **Stacks**, then **+ Add stack**.
+3. Name the stack: `zigbee-sentinel`.
+4. In the **Web editor** tab, paste the following configuration (available in [`portainer-stack.yml`](portainer-stack.yml)):
+
+```yaml
+version: '3.8'
+
+services:
+  zigbee-sentinel:
+    image: ghcr.io/ndaden/zigbee-sentinel:latest
+    container_name: zigbee-sentinel
+    restart: unless-stopped
+    # Host network mode is required to communicate directly with Mosquitto on 127.0.0.1:1883
+    network_mode: host
+    environment:
+      - PORT=8090
+      - MQTT_URL=mqtt://127.0.0.1:1883
+      - Z2M_BASE_TOPIC=zigbee2mqtt
+      - DATABASE_PATH=/app/data/zigbee_sentinel.db
+      - HISTORY_RETENTION_DAYS=60
+    volumes:
+      - zigbee-sentinel-data:/app/data
+
+volumes:
+  zigbee-sentinel-data:
+    name: zigbee-sentinel-data
+```
+
+5. Click the blue **Deploy the stack** button.
+6. Portainer pulls the pre-built multi-arch image and starts the container.
+7. Open **`http://<RASPBERRY_PI_IP>:8090`** in your browser.
+
+> [!TIP]
+> **Updating:** To update to the latest release, open the stack in Portainer, click **Editor**, check **Re-pull image**, and click **Update the stack**.
+
+---
+
+## 6. Raspberry Pi Deployment with Docker Compose
 
 This is the **recommended** deployment method on Raspberry Pi OS. It encapsulates all dependencies and native C++ SQLite bindings without altering Jeedom's host environment.
 
@@ -518,7 +615,7 @@ Open your web browser:
 
 ---
 
-## 6. Alternative Bare-Metal Deployment (PM2 / Systemd)
+## 7. Alternative Bare-Metal Deployment (PM2 / Systemd)
 
 If you prefer running Zigbee Sentinel natively without Docker:
 
@@ -582,7 +679,7 @@ sudo systemctl status zigbee-sentinel
 
 ---
 
-## 7. Configuration Reference Table
+## 8. Configuration Reference Table
 
 All configuration options can be defined in `.env` or passed as container environment variables:
 

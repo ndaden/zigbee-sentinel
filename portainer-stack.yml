@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  zigbee-sentinel:
+    image: ghcr.io/ndaden/zigbee-sentinel:latest
+    container_name: zigbee-sentinel
+    restart: unless-stopped
+    # Mode host indispensable pour communiquer directement avec le broker Mosquitto (127.0.0.1:1883)
+    # hébergé sur le Raspberry Pi aux côtés de Jeedom et Zigbee2MQTT
+    network_mode: host
+    environment:
+      - PORT=8090
+      - MQTT_URL=mqtt://127.0.0.1:1883
+      - Z2M_BASE_TOPIC=zigbee2mqtt
+      - DATABASE_PATH=/app/data/zigbee_sentinel.db
+      - HISTORY_RETENTION_DAYS=60
+    volumes:
+      - zigbee-sentinel-data:/app/data
+
+volumes:
+  zigbee-sentinel-data:
+    name: zigbee-sentinel-data
