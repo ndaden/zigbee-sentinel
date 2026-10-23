@@ -126,6 +126,12 @@ export function runMqttMock(
   db.recordBattery('0x00158d0001aaaa03', 92, now - 24 * oneHour);
   db.recordBattery('0x00158d0001aaaa03', 88, now - 2 * oneHour);
 
+  // Seeded event logs for Capteur Porte Entree and Ampoule Cuisine
+  db.recordEvent('0x00158d0001aaaa04', 'connected', undefined, now - 48 * oneHour);
+  db.recordEvent('0x00158d0001aaaa04', 'disconnected', 46 * oneHour, now - 2 * oneHour);
+  db.recordEvent('0x00158d0001aaaa02', 'connected', undefined, now - 72 * oneHour);
+  db.recordEvent('0x00158d0001aaaa02', 'disconnected', 70 * oneHour, now - 3 * oneHour);
+
   // 6. Listen for published requests from MqttService and respond as Zigbee2MQTT
   const onPublish = (topic: string, message: Buffer) => {
     try {

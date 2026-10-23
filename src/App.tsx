@@ -83,7 +83,7 @@ export const App: React.FC = () => {
     return filterDevices(devices, searchQuery, activeFilter);
   }, [devices, searchQuery, activeFilter]);
 
-  const handlePing = async (device: ZigbeeDevice) => {
+  const handlePing = async (device: ZigbeeDevice): Promise<boolean> => {
     try {
       const success = await triggerPing(device.ieee_address);
       if (success) {
@@ -91,12 +91,14 @@ export const App: React.FC = () => {
       } else {
         showNotification(`Le périphérique ${device.friendly_name} n'a pas répondu au ping`, 'error');
       }
+      return success;
     } catch {
       showNotification(`Échec du ping pour ${device.friendly_name}`, 'error');
+      return false;
     }
   };
 
-  const handleInterview = async (device: ZigbeeDevice) => {
+  const handleInterview = async (device: ZigbeeDevice): Promise<boolean> => {
     try {
       const success = await triggerInterview(device.ieee_address);
       if (success) {
@@ -104,8 +106,10 @@ export const App: React.FC = () => {
       } else {
         showNotification(`Échec du lancement de l'interview pour ${device.friendly_name}`, 'error');
       }
+      return success;
     } catch {
       showNotification(`Erreur lors de l'interview pour ${device.friendly_name}`, 'error');
+      return false;
     }
   };
 

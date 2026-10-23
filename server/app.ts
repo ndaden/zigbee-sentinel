@@ -5,6 +5,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import { DatabaseService } from './db/index.js';
 import { MqttService } from './mqtt/client.js';
+import { runMqttMock } from './mqtt/mock.js';
 import { DiagnosticEngine } from './diagnostic/engine.js';
 import { WebSocketManager } from './ws/server.js';
 
@@ -15,6 +16,7 @@ export interface BuildAppOptions {
   baseTopic?: string;
   enableStatic?: boolean;
   logger?: boolean | any;
+  seedMock?: boolean;
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -32,10 +34,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       baseTopic: options.baseTopic,
     });
 
-  // If mock mode is requested and we are creating or wrapping the service,
+  // If mock mode is requested and database is empty (or explicitly requested), start full mock simulation
+  let mockSimulator: { stop: () => void } | null = null;
+  const shouldSeedMock = options.seedMock ?? (isMock && db.getDevices().length === 0);
+  if (shouldSeedMock) {
+    mockSimulator = runMqttMock(mqttService, db);
+  }
+
+  // If mock mode is requested and mockSimulator was not started,
   // respond to requests in mock mode so ping/interview/permit_join don't timeout.
   let removeMockResponder: (() => void) | null = null;
-  if (isMock) {
+  if (isMock && !mockSimulator) {
     const baseTopic = mqttService.baseTopic;
     const mockResponder = (topic: string, message: Buffer) => {
       try {
@@ -233,6 +242,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   // Cleanup hook
   app.addHook('onClose', async () => {
+    if (mockSimulator) {
+      mockSimulator.stop();
+    }
     if (removeMockResponder) {
       removeMockResponder();
     }
