@@ -13,6 +13,7 @@ export class DatabaseService {
   private db: Database.Database;
 
   private getDeviceStmt: Database.Statement;
+  private getDeviceByFriendlyNameStmt: Database.Statement;
   private getDevicesStmt: Database.Statement;
   private insertDeviceStmt: Database.Statement;
   private updateDeviceStmt: Database.Statement;
@@ -51,6 +52,7 @@ export class DatabaseService {
 
     // Prepare statements
     this.getDeviceStmt = this.db.prepare('SELECT * FROM devices WHERE ieee_address = ?');
+    this.getDeviceByFriendlyNameStmt = this.db.prepare('SELECT * FROM devices WHERE friendly_name = ?');
     this.getDevicesStmt = this.db.prepare('SELECT * FROM devices ORDER BY friendly_name ASC');
 
     this.insertDeviceStmt = this.db.prepare(`
@@ -177,6 +179,11 @@ export class DatabaseService {
 
   getDevice(ieee_address: string): ZigbeeDevice | null {
     const row = this.getDeviceStmt.get(ieee_address) as ZigbeeDevice | undefined;
+    return row ?? null;
+  }
+
+  getDeviceByFriendlyName(friendlyName: string): ZigbeeDevice | null {
+    const row = this.getDeviceByFriendlyNameStmt.get(friendlyName) as ZigbeeDevice | undefined;
     return row ?? null;
   }
 

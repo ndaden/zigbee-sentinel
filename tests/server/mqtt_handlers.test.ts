@@ -1,0 +1,248 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { MqttHandler } from '../../server/mqtt/handlers.js';
+import { DatabaseService } from '../../server/db/index.js';
+import { MqttService } from '../../server/mqtt/client.js';
+import { runMqttMock } from '../../server/mqtt/mock.js';
+
+describe('MqttHandler', () => {
+  let db: DatabaseService;
+  let handler: MqttHandler;
+
+  beforeEach(() => {
+    db = new DatabaseService(':memory:');
+    handler = new MqttHandler(db, 'zigbee2mqtt');
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('should parse zigbee2mqtt/bridge/devices and register all devices', () => {
+    const rawDevices = JSON.stringify([
+      {
+        ieee_address: '0x001',
+        friendly_name: 'Coordinator',
+        type: 'Coordinator'
+      },
+      {
+        ieee_address: '0x002',
+        friendly_name: 'Ampoule Salon',
+        type: 'Router',
+        model_id: 'LWB010',
+        definition: { vendor: 'Philips', model: 'Hue White' },
+        power_source: 'Mains'
+      },
+      {
+        ieee_address: '0x003',
+        friendly_name: 'Capteur Porte',
+        type: 'EndDevice',
+        model_id: 'MCCGQ11LM',
+        definition: { vendor: 'Aqara', model: 'Door Sensor' },
+        power_source: 'Battery'
+      }
+    ]);
+
+    handler.handleMessage('zigbee2mqtt/bridge/devices', Buffer.from(rawDevices));
+
+    const devices = db.getDevices();
+    expect(devices.length).toBe(2); // Coordinator excluded
+    expect(devices.find(d => d.ieee_address === '0x002')?.vendor).toBe('Philips');
+    expect(devices.find(d => d.ieee_address === '0x002')?.model).toBe('Hue White');
+    expect(devices.find(d => d.ieee_address === '0x002')?.power_source).toBe('Mains');
+    expect(devices.find(d => d.ieee_address === '0x003')?.vendor).toBe('Aqara');
+  });
+
+  it('should update battery and linkquality from device state topic', () => {
+    db.upsertDevice({
+      ieee_address: '0x003',
+      friendly_name: 'Capteur Porte',
+      type: 'EndDevice'
+    });
+
+    const state = JSON.stringify({
+      battery: 84,
+      linkquality: 125,
+      contact: true
+    });
+
+    handler.handleMessage('zigbee2mqtt/Capteur Porte', Buffer.from(state));
+
+    const device = db.getDevice('0x003');
+    expect(device?.battery).toBe(84);
+    expect(device?.linkquality).toBe(125);
+
+    // Battery should also be recorded in history
+    const batteryHistory = db.getBatteryHistory('0x003');
+    expect(batteryHistory.length).toBe(1);
+    expect(batteryHistory[0].battery).toBe(84);
+  });
+
+  it('should update availability status when availability message arrives', () => {
+    db.upsertDevice({
+      ieee_address: '0x003',
+      friendly_name: 'Capteur Porte',
+      type: 'EndDevice',
+      status: 'online'
+    });
+
+    handler.handleMessage('zigbee2mqtt/Capteur Porte/availability', Buffer.from('offline'));
+
+    const device = db.getDevice('0x003');
+    expect(device?.status).toBe('offline');
+
+    // Should record disconnected event
+    const events = db.getEventHistory(10, '0x003');
+    expect(events.length).toBe(1);
+    expect(events[0].event_type).toBe('disconnected');
+  });
+
+  it('should record duration_offline_ms when transitioning back to online', () => {
+    const t0 = Date.now() - 5000;
+    db.upsertDevice({
+      ieee_address: '0x003',
+      friendly_name: 'Capteur Porte',
+      type: 'EndDevice',
+      status: 'online'
+    });
+
+    // Device goes offline at t0
+    db.recordEvent('0x003', 'disconnected', undefined, t0);
+    db.upsertDevice({
+      ieee_address: '0x003',
+      status: 'offline'
+    });
+
+    // Availability returns online
+    handler.handleMessage('zigbee2mqtt/Capteur Porte/availability', Buffer.from('online'));
+
+    const device = db.getDevice('0x003');
+    expect(device?.status).toBe('online');
+
+    const events = db.getEventHistory(10, '0x003');
+    expect(events.length).toBe(2);
+    expect(events[0].event_type).toBe('connected');
+    expect(events[0].duration_offline_ms).toBeGreaterThanOrEqual(4000);
+  });
+
+  it('should notify callback on device update and bridge status', () => {
+    const notifySpy = vi.fn();
+    handler.setListener(notifySpy);
+
+    handler.handleMessage('zigbee2mqtt/bridge/state', Buffer.from('online'));
+    expect(notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'bridge_status',
+        data: expect.objectContaining({ state: 'online' })
+      })
+    );
+
+    db.upsertDevice({
+      ieee_address: '0x003',
+      friendly_name: 'Capteur Porte',
+      type: 'EndDevice'
+    });
+
+    handler.handleMessage('zigbee2mqtt/Capteur Porte/availability', Buffer.from('online'));
+    expect(notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'device_updated',
+        data: expect.objectContaining({ ieee_address: '0x003', status: 'online' })
+      })
+    );
+  });
+
+  it('should handle bridge/response messages and log diagnostic results', () => {
+    db.upsertDevice({
+      ieee_address: '0x002',
+      friendly_name: 'Ampoule Salon',
+      type: 'Router'
+    });
+
+    const responsePayload = JSON.stringify({
+      data: { id: 'Ampoule Salon' },
+      status: 'ok'
+    });
+
+    handler.handleMessage('zigbee2mqtt/bridge/response/device/ping', Buffer.from(responsePayload));
+
+    const logs = db.getDiagnosticLogs('0x002');
+    expect(logs.length).toBe(1);
+    expect(logs[0].action_type).toBe('ping');
+    expect(logs[0].status).toBe('success');
+  });
+});
+
+describe('MqttService and runMqttMock', () => {
+  let db: DatabaseService;
+  let service: MqttService;
+
+  beforeEach(() => {
+    db = new DatabaseService(':memory:');
+    service = new MqttService({
+      brokerUrl: 'mqtt://127.0.0.1:1883',
+      baseTopic: 'zigbee2mqtt',
+      db,
+      mock: true
+    });
+  });
+
+  afterEach(async () => {
+    await service.close();
+    db.close();
+  });
+
+  it('should initialize in mock mode and populate 4 mock devices', async () => {
+    runMqttMock(service, db);
+
+    const devices = db.getDevices();
+    expect(devices.length).toBe(4);
+
+    const onlineRouter = devices.find(d => d.type === 'Router' && d.status === 'online');
+    const offlineRouter = devices.find(d => d.type === 'Router' && d.status === 'offline');
+    const onlineSensor = devices.find(d => d.type === 'EndDevice' && d.status === 'online');
+    const offlineSensor = devices.find(d => d.type === 'EndDevice' && d.status === 'offline');
+
+    expect(onlineRouter).toBeDefined();
+    expect(offlineRouter).toBeDefined();
+    expect(onlineSensor).toBeDefined();
+    expect(offlineSensor).toBeDefined();
+    expect(offlineSensor?.battery).toBeLessThanOrEqual(15);
+  });
+
+  it('should execute pingDevice and receive mock response', async () => {
+    runMqttMock(service, db);
+
+    const devices = db.getDevices();
+    const target = devices.find(d => d.status === 'online')!;
+
+    const result = await service.pingDevice(target.friendly_name);
+    expect(result).toBe(true);
+  });
+
+  it('should return false when pinging an offline device in mock mode', async () => {
+    runMqttMock(service, db);
+
+    const devices = db.getDevices();
+    const offlineTarget = devices.find(d => d.status === 'offline')!;
+
+    const result = await service.pingDevice(offlineTarget.friendly_name);
+    expect(result).toBe(false);
+  });
+
+  it('should execute permitJoin and receive mock response', async () => {
+    runMqttMock(service, db);
+
+    const result = await service.permitJoin(60);
+    expect(result).toBe(true);
+  });
+
+  it('should execute reinterviewDevice and receive mock response', async () => {
+    runMqttMock(service, db);
+
+    const devices = db.getDevices();
+    const target = devices[0];
+
+    const result = await service.reinterviewDevice(target.friendly_name);
+    expect(result).toBe(true);
+  });
+});

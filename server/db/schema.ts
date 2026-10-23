@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS diagnostic_logs (
     FOREIGN KEY(ieee_address) REFERENCES devices(ieee_address) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_devices_friendly_name ON devices(friendly_name);
 CREATE INDEX IF NOT EXISTS idx_history_battery_ieee ON history_battery(ieee_address, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_events_ieee ON history_events(ieee_address, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_diagnostic_logs_ieee ON diagnostic_logs(ieee_address, recorded_at DESC);
