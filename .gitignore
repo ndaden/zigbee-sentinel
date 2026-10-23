@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Production build artifacts
+dist/
+
+# SQLite database and runtime data
+data/
+*.db
+*.db-journal
+
+# Environment variables
+.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Superpowers agent artifacts
+.superpowers/
