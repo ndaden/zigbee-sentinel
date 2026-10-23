@@ -1,12 +1,15 @@
 # ==============================================================================
 # Stage 1: Build Frontend and Server
 # ==============================================================================
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install native build tools required for better-sqlite3 compilation on Alpine
-RUN apk add --no-cache python3 make g++
+# Install build tools in case native recompilation is needed
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install all dependencies (including devDependencies required for Vite and tsc)
 COPY package*.json ./
@@ -19,7 +22,7 @@ RUN npm run build
 # ==============================================================================
 # Stage 2: Production Runner
 # ==============================================================================
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
 
@@ -28,16 +31,15 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     DATABASE_PATH=/app/data/zigbee_sentinel.db
 
-# better-sqlite3 is a C++ native addon requiring libstdc++ at runtime on Alpine.
-# We temporarily install python3, make, and g++ to compile production bindings,
-# then strip the build dependencies to maintain a minimal container image.
-RUN apk add --no-cache libstdc++ && \
-    apk add --no-cache --virtual .build-deps python3 make g++
+# better-sqlite3 automatically downloads prebuilt binaries for linux-arm64 and linux-x64 on Debian (glibc)
+# We install python3 and build-essential as fallback, then clean apt caches to minimize image size
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci --omit=dev && \
-    npm cache clean --force && \
-    apk del .build-deps
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled frontend and server distribution files from builder
 COPY --from=builder /app/dist ./dist
