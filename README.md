@@ -181,8 +181,6 @@ L'image Docker multi-architecture (`linux/amd64`, `linux/arm64`) est automatique
 4. Sélectionnez l'onglet **Web editor** et collez le contenu suivant (disponible dans le fichier [`portainer-stack.yml`](portainer-stack.yml)) :
 
 ```yaml
-version: '3.8'
-
 services:
   zigbee-sentinel:
     image: ghcr.io/ndaden/zigbee-sentinel:latest
@@ -206,7 +204,6 @@ services:
 
 volumes:
   zigbee-sentinel-data:
-    name: zigbee-sentinel-data
 ```
 
 5. Cliquez sur le bouton bleu **Deploy the stack** en bas de page.
@@ -522,8 +519,6 @@ Multi-architecture Docker images (`linux/amd64`, `linux/arm64`) are automaticall
 4. In the **Web editor** tab, paste the following configuration (available in [`portainer-stack.yml`](portainer-stack.yml)):
 
 ```yaml
-version: '3.8'
-
 services:
   zigbee-sentinel:
     image: ghcr.io/ndaden/zigbee-sentinel:latest
@@ -534,10 +529,10 @@ services:
     environment:
       - PORT=8090
       - MQTT_URL=mqtt://127.0.0.1:1883
-      # Authentification Mosquitto (copiable depuis le champ "Authentification" du plugin Jeedom mqtt2)
+      # Mosquitto authentication (matching Jeedom mqtt2 credentials)
       - MQTT_USERNAME=jeedom
       - MQTT_PASSWORD=d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
-      # Ou alternativement en une seule ligne :
+      # Or alternatively in a single line:
       # - MQTT_AUTH=jeedom:d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
       - Z2M_BASE_TOPIC=zigbee2mqtt
       - DATABASE_PATH=/app/data/zigbee_sentinel.db
@@ -547,7 +542,6 @@ services:
 
 volumes:
   zigbee-sentinel-data:
-    name: zigbee-sentinel-data
 ```
 
 5. Click the blue **Deploy the stack** button.
