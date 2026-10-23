@@ -225,7 +225,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
                     <span
                       key={barNumber}
                       className={`w-1 rounded-sm transition-colors ${heights[barNumber - 1]} ${
-                        isActive ? lqiInfo.color.replace('text-', 'bg-') : 'bg-slate-700'
+                        isActive ? lqiInfo.bg : 'bg-slate-700'
                       }`}
                     />
                   );

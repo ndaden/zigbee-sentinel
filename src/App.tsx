@@ -3,6 +3,8 @@ import { useZigbeeState } from './hooks/useZigbeeState';
 import { Header } from './components/Header';
 import { FilterToolbar } from './components/FilterToolbar';
 import { DeviceList } from './components/DeviceList';
+import { DiagnosticModal } from './components/DiagnosticModal';
+import { HistoryModal } from './components/HistoryModal';
 import type { ZigbeeDevice } from './types/device';
 import {
   type FilterType,
@@ -25,6 +27,8 @@ export const App: React.FC = () => {
     triggerPing,
     triggerInterview,
     triggerPermitJoin,
+    runDiagnostic,
+    fetchHistory,
     refresh,
   } = useZigbeeState();
 
@@ -185,75 +189,31 @@ export const App: React.FC = () => {
           onViewHistory={handleViewHistory}
         />
 
-        {/* Placeholder Modals for Task 8 */}
+        {/* Interactive Modals */}
         {selectedDiagnosticDevice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-semibold text-white">
-                  Assistant Diagnostic (Bientôt disponible)
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setSelectedDiagnosticDevice(null)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="py-4 text-sm text-slate-300">
-                Diagnostic demandé pour{' '}
-                <span className="font-semibold text-indigo-400">
-                  {selectedDiagnosticDevice.friendly_name}
-                </span>{' '}
-                ({selectedDiagnosticDevice.ieee_address}). Le wizard interactif sera activé dans la prochaine étape.
-              </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDiagnosticDevice(null)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
-                >
-                  Fermer
-                </button>
-              </div>
-            </div>
-          </div>
+          <DiagnosticModal
+            device={
+              devices.find((d) => d.ieee_address === selectedDiagnosticDevice.ieee_address) ||
+              selectedDiagnosticDevice
+            }
+            onClose={() => setSelectedDiagnosticDevice(null)}
+            onPing={handlePing}
+            onInterview={handleInterview}
+            onPermitJoin={handlePermitJoin}
+            permitJoinTimer={permitJoinTimer}
+            runDiagnostic={runDiagnostic}
+          />
         )}
 
         {selectedHistoryDevice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-semibold text-white">
-                  Historique (Bientôt disponible)
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setSelectedHistoryDevice(null)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="py-4 text-sm text-slate-300">
-                Historique des déconnexions et évolution de la batterie pour{' '}
-                <span className="font-semibold text-indigo-400">
-                  {selectedHistoryDevice.friendly_name}
-                </span>
-                . Le panneau d&apos;historique sera activé dans la prochaine étape.
-              </div>
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedHistoryDevice(null)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl"
-                >
-                  Fermer
-                </button>
-              </div>
-            </div>
-          </div>
+          <HistoryModal
+            device={
+              devices.find((d) => d.ieee_address === selectedHistoryDevice.ieee_address) ||
+              selectedHistoryDevice
+            }
+            onClose={() => setSelectedHistoryDevice(null)}
+            fetchHistory={fetchHistory}
+          />
         )}
       </main>
 

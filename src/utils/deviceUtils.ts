@@ -13,11 +13,11 @@ export function getDeviceCategory(device: ZigbeeDevice): DeviceCategory {
   if (/\b(plug|prise|socket|outlet)\b/i.test(text)) {
     return 'plug';
   }
-  if (/\b(temp|humidity|humid|climat|thermostat|weather|meteo|wsdcg)\b/i.test(text)) {
+  if (/\b(temp|humidity|humid|climat|thermostat|weather|meteo)\b|wsdcg/i.test(text)) {
     return 'climate';
   }
   if (
-    /\b(motion|mouvement|contact|door|porte|window|fenetre|pir|presence|leak|water|inond|smoke|fumee|vibration|rtcgq|mccgq|sensor|capteur)\b/i.test(
+    /\b(motion|mouvement|contact|door|porte|window|fenetre|pir|presence|leak|water|inond|smoke|fumee|vibration|sensor|capteur)\b|rtcgq|mccgq|sjcgq|djt11/i.test(
       text
     )
   ) {
@@ -64,23 +64,24 @@ export interface LqiInfo {
   maxBars: number;
   label: string;
   color: string;
+  bg: string;
 }
 
 export function getLqiBars(lqi?: number | null): LqiInfo {
   const maxBars = 4;
   if (lqi === null || lqi === undefined || lqi < 0) {
-    return { bars: 0, maxBars, label: 'Inconnu', color: 'text-slate-500' };
+    return { bars: 0, maxBars, label: 'Inconnu', color: 'text-slate-500', bg: 'bg-slate-500' };
   }
   if (lqi <= 40) {
-    return { bars: 1, maxBars, label: 'Faible', color: 'text-rose-400' };
+    return { bars: 1, maxBars, label: 'Faible', color: 'text-rose-400', bg: 'bg-rose-500' };
   }
   if (lqi <= 90) {
-    return { bars: 2, maxBars, label: 'Moyen', color: 'text-amber-400' };
+    return { bars: 2, maxBars, label: 'Moyen', color: 'text-amber-400', bg: 'bg-amber-400' };
   }
   if (lqi <= 160) {
-    return { bars: 3, maxBars, label: 'Bon', color: 'text-emerald-400' };
+    return { bars: 3, maxBars, label: 'Bon', color: 'text-emerald-400', bg: 'bg-emerald-400' };
   }
-  return { bars: 4, maxBars, label: 'Excellent', color: 'text-emerald-500' };
+  return { bars: 4, maxBars, label: 'Excellent', color: 'text-emerald-500', bg: 'bg-emerald-500' };
 }
 
 export interface BatteryColorInfo {
@@ -214,3 +215,57 @@ export function calculateDeviceStats(devices: ZigbeeDevice[]): DeviceStats {
     lowBattery,
   };
 }
+
+export function formatDurationMs(ms?: number | null): string {
+  if (ms === null || ms === undefined || ms < 0) {
+    return 'Durée inconnue';
+  }
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds} s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const remSec = seconds % 60;
+    return remSec > 0 ? `${minutes} min ${remSec} s` : `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (hours < 24) {
+    return remMin > 0 ? `${hours} h ${remMin} min` : `${hours} h`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours > 0 ? `${days} j ${remHours} h` : `${days} j`;
+}
+
+export function formatDateFull(timestamp?: number | null): string {
+  if (!timestamp || timestamp <= 0) return 'Date inconnue';
+  const d = new Date(timestamp);
+  return d.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+export function getLikelyCauseLabel(cause?: string | null): string {
+  switch (cause) {
+    case 'dead_battery':
+      return 'Pile épuisée ou critique';
+    case 'weak_signal':
+      return 'Signal radio faible / instable';
+    case 'mains_power_loss':
+      return "Perte d'alimentation secteur";
+    case 'desynchronized':
+      return 'Capteur désynchronisé / endormi';
+    case 'healthy':
+      return 'Fonctionnement normal';
+    default:
+      return 'Anomalie détectée';
+  }
+}
+

@@ -6,6 +6,9 @@ import {
   getBatteryColor,
   filterDevices,
   calculateDeviceStats,
+  formatDurationMs,
+  formatDateFull,
+  getLikelyCauseLabel,
 } from '../../src/utils/deviceUtils';
 import type { ZigbeeDevice } from '../../src/types/device';
 
@@ -89,6 +92,33 @@ describe('deviceUtils', () => {
       expect(getDeviceCategory(mockDevices[4])).toBe('sensor');
     });
 
+    it('identifies Aqara models correctly by model code alone', () => {
+      const aqaraTemp: ZigbeeDevice = {
+        ieee_address: '0x101',
+        friendly_name: 'Pièce Principale',
+        model: 'WSDCGQ11LM',
+        type: 'EndDevice',
+        status: 'online',
+      };
+      const aqaraDoor: ZigbeeDevice = {
+        ieee_address: '0x102',
+        friendly_name: 'Entrée',
+        model: 'MCCGQ11LM',
+        type: 'EndDevice',
+        status: 'online',
+      };
+      const aqaraMotion: ZigbeeDevice = {
+        ieee_address: '0x103',
+        friendly_name: 'Escalier',
+        model: 'RTCGQ11LM',
+        type: 'EndDevice',
+        status: 'online',
+      };
+      expect(getDeviceCategory(aqaraTemp)).toBe('climate');
+      expect(getDeviceCategory(aqaraDoor)).toBe('sensor');
+      expect(getDeviceCategory(aqaraMotion)).toBe('sensor');
+    });
+
     it('falls back to general category for unknown device', () => {
       const unknownDevice: ZigbeeDevice = {
         ieee_address: '0x999',
@@ -136,30 +166,35 @@ describe('deviceUtils', () => {
       const res = getLqiBars(null);
       expect(res.bars).toBe(0);
       expect(res.label).toBe('Inconnu');
+      expect(res.bg).toBe('bg-slate-500');
     });
 
     it('returns 1 bar for weak signal <= 40', () => {
       const res = getLqiBars(25);
       expect(res.bars).toBe(1);
       expect(res.label).toBe('Faible');
+      expect(res.bg).toBe('bg-rose-500');
     });
 
     it('returns 2 bars for medium signal 41-90', () => {
       const res = getLqiBars(70);
       expect(res.bars).toBe(2);
       expect(res.label).toBe('Moyen');
+      expect(res.bg).toBe('bg-amber-400');
     });
 
     it('returns 3 bars for good signal 91-160', () => {
       const res = getLqiBars(130);
       expect(res.bars).toBe(3);
       expect(res.label).toBe('Bon');
+      expect(res.bg).toBe('bg-emerald-400');
     });
 
     it('returns 4 bars for excellent signal > 160', () => {
       const res = getLqiBars(200);
       expect(res.bars).toBe(4);
       expect(res.label).toBe('Excellent');
+      expect(res.bg).toBe('bg-emerald-500');
     });
   });
 
@@ -220,6 +255,58 @@ describe('deviceUtils', () => {
       expect(stats.online).toBe(4);
       expect(stats.offline).toBe(1);
       expect(stats.lowBattery).toBe(1);
+    });
+  });
+
+  describe('formatDurationMs', () => {
+    it('handles null, undefined, or negative values', () => {
+      expect(formatDurationMs(null)).toBe('Durée inconnue');
+      expect(formatDurationMs(undefined)).toBe('Durée inconnue');
+      expect(formatDurationMs(-500)).toBe('Durée inconnue');
+    });
+
+    it('formats seconds', () => {
+      expect(formatDurationMs(45_000)).toBe('45 s');
+    });
+
+    it('formats minutes and seconds', () => {
+      expect(formatDurationMs(120_000)).toBe('2 min');
+      expect(formatDurationMs(150_000)).toBe('2 min 30 s');
+    });
+
+    it('formats hours and minutes', () => {
+      expect(formatDurationMs(3600_000)).toBe('1 h');
+      expect(formatDurationMs(5400_000)).toBe('1 h 30 min');
+    });
+
+    it('formats days and hours', () => {
+      expect(formatDurationMs(86400_000)).toBe('1 j');
+      expect(formatDurationMs(90000_000)).toBe('1 j 1 h');
+    });
+  });
+
+  describe('formatDateFull', () => {
+    it('handles null or 0 timestamp', () => {
+      expect(formatDateFull(null)).toBe('Date inconnue');
+      expect(formatDateFull(0)).toBe('Date inconnue');
+    });
+
+    it('formats valid timestamp into localized string', () => {
+      const ts = new Date(2026, 9, 23, 14, 30, 0).getTime();
+      const formatted = formatDateFull(ts);
+      expect(formatted).toContain('2026');
+      expect(formatted).toContain('14:30');
+    });
+  });
+
+  describe('getLikelyCauseLabel', () => {
+    it('returns human-friendly labels for diagnostic causes', () => {
+      expect(getLikelyCauseLabel('dead_battery')).toBe('Pile épuisée ou critique');
+      expect(getLikelyCauseLabel('weak_signal')).toBe('Signal radio faible / instable');
+      expect(getLikelyCauseLabel('mains_power_loss')).toBe("Perte d'alimentation secteur");
+      expect(getLikelyCauseLabel('desynchronized')).toBe('Capteur désynchronisé / endormi');
+      expect(getLikelyCauseLabel('healthy')).toBe('Fonctionnement normal');
+      expect(getLikelyCauseLabel('other')).toBe('Anomalie détectée');
     });
   });
 });

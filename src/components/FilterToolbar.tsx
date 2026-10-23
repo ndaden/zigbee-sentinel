@@ -22,17 +22,26 @@ interface FilterOption {
   icon: React.FC<{ className?: string }>;
   countKey: keyof NonNullable<FilterToolbarProps['counts']>;
   alertColor?: string;
+  chipBadgeClass?: string;
 }
 
 const FILTER_OPTIONS: FilterOption[] = [
   { id: 'all', label: 'Tous', icon: Layers, countKey: 'all' },
-  { id: 'offline', label: 'Hors-ligne', icon: WifiOff, countKey: 'offline', alertColor: 'text-rose-400' },
+  {
+    id: 'offline',
+    label: 'Hors-ligne',
+    icon: WifiOff,
+    countKey: 'offline',
+    alertColor: 'text-rose-400',
+    chipBadgeClass: 'bg-rose-500/20 text-rose-300',
+  },
   {
     id: 'low_battery',
     label: 'Batterie faible',
     icon: BatteryWarning,
     countKey: 'low_battery',
     alertColor: 'text-amber-400',
+    chipBadgeClass: 'bg-amber-500/20 text-amber-300',
   },
   { id: 'mains', label: 'Sur secteur', icon: Plug, countKey: 'mains' },
   { id: 'battery', label: 'Sur pile', icon: Battery, countKey: 'battery' },
@@ -96,8 +105,8 @@ export const FilterToolbar: React.FC<FilterToolbarProps> = ({
                   className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
                     isActive
                       ? 'bg-indigo-900/60 text-white'
-                      : opt.alertColor && count > 0
-                      ? 'bg-rose-500/20 text-rose-300'
+                      : opt.chipBadgeClass && count > 0
+                      ? opt.chipBadgeClass
                       : 'bg-slate-700 text-slate-300'
                   }`}
                 >
