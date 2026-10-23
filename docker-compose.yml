@@ -15,8 +15,9 @@ services:
       - Z2M_BASE_TOPIC=zigbee2mqtt
       - DATABASE_PATH=/app/data/zigbee_sentinel.db
       - HISTORY_RETENTION_DAYS=60
-      # Optional MQTT authentication (uncomment and configure if your Mosquitto broker requires it)
-      # - MQTT_USERNAME=
+      # Optional MQTT authentication (uncomment or configure MQTT_AUTH / MQTT_USERNAME+PASSWORD)
+      # - MQTT_AUTH=jeedom:password
+      # - MQTT_USERNAME=jeedom
       # - MQTT_PASSWORD=
     volumes:
       - ./data:/app/data

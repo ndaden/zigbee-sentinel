@@ -272,4 +272,26 @@ describe('MqttService and runMqttMock', () => {
     const result = await service.reinterviewDevice(target.friendly_name);
     expect(result).toBe(true);
   });
+
+  it('should parse auth string into username and password', () => {
+    const authService = new MqttService({
+      db,
+      auth: 'jeedom:d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi',
+      mock: true,
+    });
+
+    expect(authService.getUsername()).toBe('jeedom');
+    expect(authService.getPassword()).toBe('d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi');
+  });
+
+  it('should correctly handle passwords containing colons', () => {
+    const authService = new MqttService({
+      db,
+      auth: 'custom_user:pass:word:with:colons',
+      mock: true,
+    });
+
+    expect(authService.getUsername()).toBe('custom_user');
+    expect(authService.getPassword()).toBe('pass:word:with:colons');
+  });
 });

@@ -11,6 +11,9 @@ services:
     environment:
       - PORT=8090
       - MQTT_URL=mqtt://127.0.0.1:1883
+      # Configuration MQTT extraite du plugin Jeedom mqtt2
+      - MQTT_USERNAME=jeedom
+      - MQTT_PASSWORD=d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
       - Z2M_BASE_TOPIC=zigbee2mqtt
       - DATABASE_PATH=/app/data/zigbee_sentinel.db
       - HISTORY_RETENTION_DAYS=60

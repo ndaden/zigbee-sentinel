@@ -193,6 +193,11 @@ services:
     environment:
       - PORT=8090
       - MQTT_URL=mqtt://127.0.0.1:1883
+      # Authentification Mosquitto (copiable depuis le champ "Authentification" du plugin Jeedom mqtt2)
+      - MQTT_USERNAME=jeedom
+      - MQTT_PASSWORD=d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
+      # Ou alternativement en une seule ligne :
+      # - MQTT_AUTH=jeedom:d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
       - Z2M_BASE_TOPIC=zigbee2mqtt
       - DATABASE_PATH=/app/data/zigbee_sentinel.db
       - HISTORY_RETENTION_DAYS=60
@@ -369,7 +374,8 @@ Toutes les options de configuration peuvent être définies dans un fichier `.en
 | **`PORT`** | Entier | `8090` | Port TCP d'écoute du serveur web et des WebSockets. |
 | **`HOST`** | Chaîne | `0.0.0.0` | Adresse réseau d'écoute (`0.0.0.0` pour toutes les interfaces). |
 | **`MQTT_URL`** | URL | `mqtt://127.0.0.1:1883` | Adresse du broker MQTT Mosquitto local sur le Raspberry Pi. |
-| **`MQTT_USERNAME`** | Chaîne | *(vide)* | Nom d'utilisateur MQTT si Mosquitto est sécurisé avec authentification. |
+| **`MQTT_AUTH`** | Chaîne | *(vide)* | Chaîne d'authentification `utilisateur:motdepasse` (copiable directement depuis le champ *Authentification* du plugin Jeedom mqtt2). |
+| **`MQTT_USERNAME`** | Chaîne | *(vide)* | Nom d'utilisateur MQTT si Mosquitto est sécurisé avec authentification (ex: `jeedom`). |
 | **`MQTT_PASSWORD`** | Chaîne | *(vide)* | Mot de passe associé à l'utilisateur MQTT. |
 | **`Z2M_BASE_TOPIC`** | Chaîne | `zigbee2mqtt` | Préfixe racine des topics Zigbee2MQTT configuré dans `configuration.yaml`. |
 | **`DATABASE_PATH`** | Chemin | `./data/zigbee_sentinel.db` | Chemin du fichier de base de données locale SQLite (`/app/data/...` sous Docker). |
@@ -528,6 +534,11 @@ services:
     environment:
       - PORT=8090
       - MQTT_URL=mqtt://127.0.0.1:1883
+      # Authentification Mosquitto (copiable depuis le champ "Authentification" du plugin Jeedom mqtt2)
+      - MQTT_USERNAME=jeedom
+      - MQTT_PASSWORD=d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
+      # Ou alternativement en une seule ligne :
+      # - MQTT_AUTH=jeedom:d0R25N0IGWBuCu6IV7whLgTq4qfU1xSZ3dgib58rN1wiQ6nyz85dmbZotMCvcJUi
       - Z2M_BASE_TOPIC=zigbee2mqtt
       - DATABASE_PATH=/app/data/zigbee_sentinel.db
       - HISTORY_RETENTION_DAYS=60
@@ -688,6 +699,7 @@ All configuration options can be defined in `.env` or passed as container enviro
 | **`PORT`** | Integer | `8090` | Web server and WebSocket listening port. |
 | **`HOST`** | String | `0.0.0.0` | Bind host address (`0.0.0.0` binds to all network interfaces). |
 | **`MQTT_URL`** | URL | `mqtt://127.0.0.1:1883` | Mosquitto broker URL on the local Raspberry Pi. |
+| **`MQTT_AUTH`** | String | *(empty)* | Combined `username:password` string (copyable directly from Jeedom mqtt2 Authentication field). |
 | **`MQTT_USERNAME`** | String | *(empty)* | Optional MQTT username if Mosquitto authentication is enabled. |
 | **`MQTT_PASSWORD`** | String | *(empty)* | Optional MQTT password. |
 | **`Z2M_BASE_TOPIC`** | String | `zigbee2mqtt` | Zigbee2MQTT base topic prefix configured in `configuration.yaml`. |

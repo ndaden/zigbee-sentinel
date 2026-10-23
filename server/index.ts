@@ -20,6 +20,7 @@ export async function startServer() {
     baseTopic: process.env.Z2M_BASE_TOPIC,
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
+    auth: process.env.MQTT_AUTH,
     mock: isMock,
   });
 

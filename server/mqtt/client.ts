@@ -8,6 +8,7 @@ export interface MqttServiceOptions {
   baseTopic?: string;
   username?: string;
   password?: string;
+  auth?: string;
   db: DatabaseService;
   mock?: boolean;
   onNotification?: MqttListener;
@@ -44,8 +45,19 @@ export class MqttService extends EventEmitter {
       ''
     );
     this.brokerUrl = options.brokerUrl || process.env.MQTT_URL || 'mqtt://127.0.0.1:1883';
-    this.username = options.username || process.env.MQTT_USERNAME;
-    this.password = options.password || process.env.MQTT_PASSWORD;
+
+    let username = options.username || process.env.MQTT_USERNAME;
+    let password = options.password || process.env.MQTT_PASSWORD;
+    const auth = options.auth || process.env.MQTT_AUTH;
+
+    if (auth && (!username || !password)) {
+      const [authUser, ...authPassParts] = auth.split(':');
+      username = username || authUser;
+      password = password || authPassParts.join(':');
+    }
+
+    this.username = username;
+    this.password = password;
     this.isMock = options.mock ?? process.env.MOCK_MQTT === 'true';
 
     this.handler = new MqttHandler(options.db, this.baseTopic, options.onNotification);
@@ -59,6 +71,14 @@ export class MqttService extends EventEmitter {
 
   getHandler(): MqttHandler {
     return this.handler;
+  }
+
+  getUsername(): string | undefined {
+    return this.username;
+  }
+
+  getPassword(): string | undefined {
+    return this.password;
   }
 
   isConnected(): boolean {
