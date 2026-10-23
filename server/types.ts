@@ -13,8 +13,40 @@ export interface ZigbeeDevice {
   battery?: number | null;
   linkquality?: number | null;
   last_seen?: number | null;
-  created_at: number;
-  updated_at: number;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export type DiagnosticSeverity = 'critical' | 'warning' | 'info';
+
+export type DiagnosticLikelyCause =
+  | 'dead_battery'
+  | 'weak_signal'
+  | 'mains_power_loss'
+  | 'desynchronized'
+  | 'healthy';
+
+export type DiagnosticActionType = 'ping' | 'permit_join' | 'interview' | 'manual';
+
+export interface DiagnosticAction {
+  id: string;
+  label: string;
+  type: DiagnosticActionType;
+  instruction?: string;
+}
+
+export interface DiagnosticDetails {
+  batteryStatus: string;
+  signalStatus: string;
+  lastSeenHuman: string;
+}
+
+export interface DiagnosticReport {
+  verdict: string;
+  severity: DiagnosticSeverity;
+  likelyCause: DiagnosticLikelyCause;
+  recommendedActions: DiagnosticAction[];
+  details: DiagnosticDetails;
 }
 
 export interface BatteryHistoryRecord {
