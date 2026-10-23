@@ -51,7 +51,7 @@ export interface DiagnosticReport {
 
 export interface BatteryHistoryRecord {
   id?: number;
-  ieee_address: string;
+  ieee_address?: string;
   battery: number;
   recorded_at: number;
 }

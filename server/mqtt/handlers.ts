@@ -263,6 +263,16 @@ export class MqttHandler extends EventEmitter {
         updated_at: now,
       };
 
+      if (dev.status === 'offline') {
+        updates.status = 'online';
+        const lastEvents = this.db.getEventHistory(1, dev.ieee_address);
+        let durationOfflineMs: number | undefined;
+        if (lastEvents.length > 0 && lastEvents[0].event_type === 'disconnected') {
+          durationOfflineMs = Math.max(0, now - lastEvents[0].recorded_at);
+        }
+        this.db.recordEvent(dev.ieee_address, 'connected', durationOfflineMs, now);
+      }
+
       if (typeof state.battery === 'number') {
         updates.battery = state.battery;
         this.db.recordBattery(dev.ieee_address, state.battery, now);

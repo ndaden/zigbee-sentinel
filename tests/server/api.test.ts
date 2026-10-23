@@ -59,6 +59,29 @@ describe('Fastify REST API & WebSocket Server', () => {
       expect(body.events[0].event_type).toBe('connected');
     });
 
+    it('GET /api/devices/:ieee/history should sanitize limit query parameter gracefully', async () => {
+      // Test invalid non-number fallback to default 100
+      const invalidRes = await app.inject({
+        method: 'GET',
+        url: '/api/devices/0x111/history?limit=invalid',
+      });
+      expect(invalidRes.statusCode).toBe(200);
+
+      // Test negative number fallback to default 100
+      const negRes = await app.inject({
+        method: 'GET',
+        url: '/api/devices/0x111/history?limit=-5',
+      });
+      expect(negRes.statusCode).toBe(200);
+
+      // Test upper clamp at 1000
+      const largeRes = await app.inject({
+        method: 'GET',
+        url: '/api/devices/0x111/history?limit=5000',
+      });
+      expect(largeRes.statusCode).toBe(200);
+    });
+
     it('GET /api/devices/:ieee/history should return 404 for unknown device', async () => {
       const res = await app.inject({
         method: 'GET',

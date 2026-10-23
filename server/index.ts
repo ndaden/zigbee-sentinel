@@ -23,6 +23,16 @@ export async function startServer() {
     mock: isMock,
   });
 
+  mqttService.on('error', (err) => console.error('[MQTT Error]', err.message));
+
+  // Retention purge on startup & daily interval
+  const retentionDays = parseInt(process.env.HISTORY_RETENTION_DAYS || '60', 10);
+  db.purgeOldRecords(retentionDays);
+  const purgeTimer = setInterval(() => {
+    db.purgeOldRecords(retentionDays);
+  }, 24 * 3600 * 1000);
+  purgeTimer.unref();
+
   let mockSimulator: { stop: () => void } | null = null;
   if (isMock) {
     console.log('[Mock] Starting MQTT Mock simulator...');

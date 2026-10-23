@@ -77,6 +77,33 @@ describe('MqttHandler', () => {
     expect(batteryHistory[0].battery).toBe(84);
   });
 
+  it('should transition offline device to online and record connected event when telemetry arrives', () => {
+    const t0 = Date.now() - 10000;
+    db.upsertDevice({
+      ieee_address: '0x003',
+      friendly_name: 'Capteur Porte',
+      type: 'EndDevice',
+      status: 'offline'
+    });
+    db.recordEvent('0x003', 'disconnected', undefined, t0);
+
+    const state = JSON.stringify({
+      battery: 88,
+      linkquality: 110
+    });
+
+    handler.handleMessage('zigbee2mqtt/Capteur Porte', Buffer.from(state));
+
+    const device = db.getDevice('0x003');
+    expect(device?.status).toBe('online');
+    expect(device?.battery).toBe(88);
+
+    const events = db.getEventHistory(10, '0x003');
+    expect(events.length).toBe(2);
+    expect(events[0].event_type).toBe('connected');
+    expect(events[0].duration_offline_ms).toBeGreaterThanOrEqual(9000);
+  });
+
   it('should update availability status when availability message arrives', () => {
     db.upsertDevice({
       ieee_address: '0x003',

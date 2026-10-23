@@ -44,13 +44,11 @@ export function detectSteepBatteryDrop(
     }
   }
 
-  // 2. Total drop >= 25% within a 7-day window
-  const oldest = readings[0];
-  const newest = readings[readings.length - 1];
-  const timeSpanMs = newest.time - oldest.time;
-  const totalDrop = oldest.battery - newest.battery;
+  // 2. Total drop >= 25% within a 7-day sliding window
   const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
-  if (timeSpanMs <= SEVEN_DAYS_MS && totalDrop >= 25) {
+  const newest = readings[readings.length - 1];
+  const window = readings.filter((r) => r.time >= newest.time - SEVEN_DAYS_MS);
+  if (window.length >= 2 && Math.max(...window.map((r) => r.battery)) - newest.battery >= 25) {
     return true;
   }
 

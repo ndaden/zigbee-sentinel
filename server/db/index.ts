@@ -4,7 +4,6 @@ import Database from 'better-sqlite3';
 import { initSchema } from './schema.js';
 import type {
   ZigbeeDevice,
-  BatteryHistoryRecord,
   EventRecord,
   DiagnosticLogRecord,
 } from '../types.js';

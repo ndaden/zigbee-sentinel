@@ -104,6 +104,34 @@ describe('DiagnosticEngine', () => {
     expect(report.recommendedActions.some(a => a.type === 'permit_join')).toBe(true);
   });
 
+  it('should detect steep drop in 7-day sliding window even when total history spans 30 days with no single drop >= 20%', () => {
+    const now = Date.now();
+    const dayMs = 24 * 3600 * 1000;
+    const device: ZigbeeDevice = {
+      ieee_address: '0x223',
+      friendly_name: 'Capteur Temp Chambre',
+      type: 'EndDevice',
+      power_source: 'Battery',
+      status: 'offline',
+      battery: 55,
+      linkquality: 100,
+      last_seen: now
+    };
+
+    const history: BatteryHistoryRecord[] = [
+      { ieee_address: '0x223', battery: 90, recorded_at: now - 30 * dayMs },
+      { ieee_address: '0x223', battery: 88, recorded_at: now - 20 * dayMs },
+      { ieee_address: '0x223', battery: 85, recorded_at: now - 5 * dayMs },
+      { ieee_address: '0x223', battery: 70, recorded_at: now - 2 * dayMs },
+      { ieee_address: '0x223', battery: 55, recorded_at: now }
+    ];
+
+    const report = DiagnosticEngine.analyze(device, history);
+    expect(report.likelyCause).toBe('dead_battery');
+    expect(report.severity).toBe('critical');
+    expect(report.verdict.toLowerCase()).toMatch(/chute|pile|batterie/);
+  });
+
   it('should diagnose desynchronized EndDevice when offline with good battery and signal', () => {
     const device: ZigbeeDevice = {
       ieee_address: '0x333',

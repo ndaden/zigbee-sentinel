@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../server/app.js';
 import { DatabaseService } from '../../server/db/index.js';
@@ -6,6 +8,28 @@ import { DatabaseService } from '../../server/db/index.js';
 describe('E2E Diagnostic & Reconnect Workflow', () => {
   let app: FastifyInstance;
   let db: DatabaseService;
+
+  const distClientDir = path.resolve(process.cwd(), 'dist/client');
+  const distClientHtml = path.join(distClientDir, 'index.html');
+  let fixtureCreated = false;
+
+  beforeAll(() => {
+    if (!fs.existsSync(distClientHtml)) {
+      fs.mkdirSync(distClientDir, { recursive: true });
+      fs.writeFileSync(
+        distClientHtml,
+        '<!DOCTYPE html><html><head><title>Zigbee Sentinel</title></head><body><div id="root"></div></body></html>',
+        'utf-8'
+      );
+      fixtureCreated = true;
+    }
+  });
+
+  afterAll(() => {
+    if (fixtureCreated && fs.existsSync(distClientHtml)) {
+      fs.unlinkSync(distClientHtml);
+    }
+  });
 
   beforeEach(async () => {
     db = new DatabaseService(':memory:');

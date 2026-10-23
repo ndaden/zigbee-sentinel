@@ -113,7 +113,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     '/api/devices/:ieee/history',
     async (req, reply) => {
       const { ieee } = req.params;
-      const limit = req.query.limit ? parseInt(req.query.limit, 10) : 100;
+      const parsed = parseInt(req.query.limit || '', 10);
+      const limit = Number.isInteger(parsed) && parsed > 0 ? Math.min(1000, parsed) : 100;
       const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
 
       if (!device) {
@@ -138,7 +139,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       }
 
       const batteryHistory = db.getBatteryHistory(device.ieee_address);
-      const report = DiagnosticEngine.analyze(device, batteryHistory as any);
+      const report = DiagnosticEngine.analyze(device, batteryHistory);
 
       return reply.status(200).send(report);
     }
@@ -220,8 +221,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     });
   });
 
-  // Serve static files from dist/ if available
-  const distPath = path.resolve(process.cwd(), 'dist');
+  // Serve static files from dist/client if available
+  const distPath = path.resolve(process.cwd(), 'dist/client');
   if (
     options.enableStatic !== false &&
     fs.existsSync(distPath) &&

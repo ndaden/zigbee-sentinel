@@ -86,7 +86,9 @@ export class MqttService extends EventEmitter {
 
       this.client.on('error', (err: Error) => {
         console.error('[MQTT] Broker connection error:', err.message);
-        this.emit('error', err);
+        if (this.listenerCount('error') > 0) {
+          this.emit('error', err);
+        }
       });
 
       this.client.on('close', () => {
@@ -163,7 +165,7 @@ export class MqttService extends EventEmitter {
             event.payload?.data?.id ||
             event.payload?.data?.friendly_name ||
             event.payload?.data?.ieee_address;
-          if (!id || id === friendlyName) {
+          if (id && id === friendlyName) {
             resolved = true;
             cleanup();
             resolve(event.payload?.status === 'ok');
@@ -210,7 +212,7 @@ export class MqttService extends EventEmitter {
             event.payload?.data?.id ||
             event.payload?.data?.friendly_name ||
             event.payload?.data?.ieee_address;
-          if (!id || id === friendlyName) {
+          if (id && id === friendlyName) {
             resolved = true;
             cleanup();
             resolve(event.payload?.status === 'ok');
