@@ -56,6 +56,16 @@ export interface UseZigbeeStateReturn {
   triggerConfigure: (ieee: string) => Promise<boolean>;
   triggerReset: (ieee: string, permitJoinTime?: number) => Promise<boolean>;
   triggerRestartBridge: () => Promise<{ success: boolean; message: string }>;
+  triggerRename: (ieee: string, customName: string | null) => Promise<boolean>;
+  triggerJeedomSync: (
+    apiKey?: string,
+    url?: string
+  ) => Promise<{
+    success: boolean;
+    count: number;
+    totalJeedomDevices: number;
+    synced: Array<{ ieee: string; previousName: string; newName: string }>;
+  }>;
   triggerPermitJoin: (seconds?: number) => Promise<boolean>;
   runDiagnostic: (ieee: string) => Promise<DiagnosticReport>;
   fetchHistory: (ieee: string, limit?: number) => Promise<DeviceHistoryResponse>;
@@ -292,6 +302,44 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     }
   }, []);
 
+  const triggerRename = useCallback(
+    async (ieee: string, customName: string | null): Promise<boolean> => {
+      try {
+        const res = await apiClient.renameDevice(ieee, customName);
+        if (res.success) {
+          setDevices((prev) =>
+            prev.map((d) => (d.ieee_address === ieee ? { ...d, custom_name: customName } : d))
+          );
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error(`[useZigbeeState] Rename failed for ${ieee}:`, err);
+        return false;
+      }
+    },
+    []
+  );
+
+  const triggerJeedomSync = useCallback(
+    async (
+      apiKey?: string,
+      url?: string
+    ): Promise<{
+      success: boolean;
+      count: number;
+      totalJeedomDevices: number;
+      synced: Array<{ ieee: string; previousName: string; newName: string }>;
+    }> => {
+      const res = await apiClient.syncJeedom(apiKey, url);
+      if (res.success) {
+        await refresh();
+      }
+      return res;
+    },
+    [refresh]
+  );
+
   const runDiagnostic = useCallback(async (ieee: string): Promise<DiagnosticReport> => {
     return apiClient.runDiagnostic(ieee);
   }, []);
@@ -313,6 +361,8 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     triggerConfigure,
     triggerReset,
     triggerRestartBridge,
+    triggerRename,
+    triggerJeedomSync,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,

@@ -166,12 +166,13 @@ export function filterDevices(
 
     // Check search query
     if (normalizedQuery) {
+      const matchCustomName = device.custom_name?.toLowerCase().includes(normalizedQuery);
       const matchName = device.friendly_name?.toLowerCase().includes(normalizedQuery);
       const matchModel = device.model?.toLowerCase().includes(normalizedQuery);
       const matchVendor = device.vendor?.toLowerCase().includes(normalizedQuery);
       const matchIeee = device.ieee_address?.toLowerCase().includes(normalizedQuery);
 
-      if (!matchName && !matchModel && !matchVendor && !matchIeee) {
+      if (!matchCustomName && !matchName && !matchModel && !matchVendor && !matchIeee) {
         return false;
       }
     }

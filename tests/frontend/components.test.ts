@@ -223,6 +223,21 @@ describe('deviceUtils', () => {
       expect(filterDevices(mockDevices, '0x005', 'all')).toHaveLength(1);
     });
 
+    it('filters by custom_name when present', () => {
+      const devicesWithCustom = [
+        ...mockDevices,
+        {
+          ieee_address: '0x006',
+          friendly_name: '0x00158d0001aaaa04',
+          custom_name: '[Terrasse] Capteur Pluie',
+          type: 'EndDevice' as const,
+          status: 'online' as const,
+        },
+      ];
+      expect(filterDevices(devicesWithCustom, 'Terrasse', 'all')).toHaveLength(1);
+      expect(filterDevices(devicesWithCustom, '0x00158d', 'all')).toHaveLength(1);
+    });
+
     it('filters by status: offline', () => {
       const offline = filterDevices(mockDevices, '', 'offline');
       expect(offline).toHaveLength(1);

@@ -361,7 +361,7 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
                   id="diagnostic-modal-title"
                   className="text-base font-bold text-white truncate"
                 >
-                  {`Assistant Diagnostic : ${device.friendly_name}`}
+                  {`Assistant Diagnostic : ${device.custom_name || device.friendly_name}`}
                 </h2>
                 {isOnline ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-500/30">

@@ -5,6 +5,7 @@ import { FilterToolbar } from './components/FilterToolbar';
 import { DeviceList } from './components/DeviceList';
 import { DiagnosticModal } from './components/DiagnosticModal';
 import { HistoryModal } from './components/HistoryModal';
+import { JeedomSyncModal } from './components/JeedomSyncModal';
 import type { ZigbeeDevice } from './types/device';
 import {
   type FilterType,
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
     triggerConfigure,
     triggerReset,
     triggerRestartBridge,
+    triggerJeedomSync,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,
@@ -40,6 +42,7 @@ export const App: React.FC = () => {
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
   const [selectedDiagnosticDevice, setSelectedDiagnosticDevice] = useState<ZigbeeDevice | null>(null);
   const [selectedHistoryDevice, setSelectedHistoryDevice] = useState<ZigbeeDevice | null>(null);
+  const [isJeedomSyncOpen, setIsJeedomSyncOpen] = useState(false);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = `${Date.now()}-${Math.random()}`;
@@ -228,6 +231,7 @@ export const App: React.FC = () => {
         permitJoinTimer={permitJoinTimer}
         onTriggerPermitJoin={handlePermitJoin}
         onTriggerRestartBridge={handleRestartBridge}
+        onOpenJeedomSync={() => setIsJeedomSyncOpen(true)}
       />
 
       {/* Main Content */}
@@ -279,6 +283,22 @@ export const App: React.FC = () => {
             fetchHistory={fetchHistory}
           />
         )}
+
+        {/* Jeedom Sync Modal */}
+        <JeedomSyncModal
+          isOpen={isJeedomSyncOpen}
+          onClose={() => setIsJeedomSyncOpen(false)}
+          onSync={async (apiKey, url) => {
+            const res = await triggerJeedomSync(apiKey, url);
+            if (res.success) {
+              showNotification(
+                `Synchronisation Jeedom réussie : ${res.count} équipement(s) mis à jour.`,
+                'success'
+              );
+            }
+            return res;
+          }}
+        />
       </main>
 
       {/* Footer */}

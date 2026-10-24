@@ -112,4 +112,45 @@ export const apiClient = {
     });
     return handleResponse<BridgeStatus>(res);
   },
+
+  async renameDevice(
+    ieee: string,
+    customName: string | null
+  ): Promise<{ success: boolean; ieee: string; custom_name: string | null }> {
+    const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ custom_name: customName }),
+    });
+    return handleResponse<{ success: boolean; ieee: string; custom_name: string | null }>(res);
+  },
+
+  async getJeedomStatus(): Promise<{ configured: boolean; url: string }> {
+    const res = await fetch('/api/jeedom/status', {
+      method: 'GET',
+    });
+    return handleResponse<{ configured: boolean; url: string }>(res);
+  },
+
+  async syncJeedom(
+    apiKey?: string,
+    url?: string
+  ): Promise<{
+    success: boolean;
+    count: number;
+    totalJeedomDevices: number;
+    synced: Array<{ ieee: string; previousName: string; newName: string }>;
+  }> {
+    const res = await fetch('/api/jeedom/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, url }),
+    });
+    return handleResponse<{
+      success: boolean;
+      count: number;
+      totalJeedomDevices: number;
+      synced: Array<{ ieee: string; previousName: string; newName: string }>;
+    }>(res);
+  },
 };

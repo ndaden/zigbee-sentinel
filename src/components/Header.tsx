@@ -10,6 +10,7 @@ import {
   Layers,
   Loader2,
   Power,
+  Link2,
 } from 'lucide-react';
 import type { BridgeStatus, ZigbeeDevice } from '../types/device';
 import { calculateDeviceStats } from '../utils/deviceUtils';
@@ -20,6 +21,7 @@ export interface HeaderProps {
   permitJoinTimer: number;
   onTriggerPermitJoin: (seconds?: number) => Promise<boolean>;
   onTriggerRestartBridge?: () => Promise<{ success: boolean; message: string }>;
+  onOpenJeedomSync?: () => void;
   isPermitJoinLoading?: boolean;
 }
 
@@ -29,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   permitJoinTimer,
   onTriggerPermitJoin,
   onTriggerRestartBridge,
+  onOpenJeedomSync,
   isPermitJoinLoading = false,
 }) => {
   const [internalLoading, setInternalLoading] = useState(false);
@@ -164,6 +167,19 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Power className={`h-3.5 w-3.5 ${isRestartingBridge ? 'animate-spin text-indigo-400' : ''}`} />
                 <span>{isRestartingBridge ? 'Redémarrage...' : 'Redémarrer Zigbee'}</span>
+              </button>
+            )}
+
+            {/* Sync Jeedom Button */}
+            {onOpenJeedomSync && (
+              <button
+                type="button"
+                onClick={onOpenJeedomSync}
+                title="Synchroniser les noms des équipements depuis Jeedom"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-200 hover:text-white border border-indigo-500/40 transition-colors shadow-sm"
+              >
+                <Link2 className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Sync Jeedom</span>
               </button>
             )}
           </div>

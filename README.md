@@ -377,6 +377,8 @@ Toutes les options de configuration peuvent être définies dans un fichier `.en
 | **`Z2M_BASE_TOPIC`** | Chaîne | `zigbee2mqtt` | Préfixe racine des topics Zigbee2MQTT configuré dans `configuration.yaml`. |
 | **`DATABASE_PATH`** | Chemin | `./data/zigbee_sentinel.db` | Chemin du fichier de base de données locale SQLite (`/app/data/...` sous Docker). |
 | **`HISTORY_RETENTION_DAYS`** | Entier | `60` | Durée de rétention (en jours) des événements et historiques de batterie avant purge automatique. |
+| **`JEEDOM_URL`** | URL | `http://127.0.0.1` | URL locale de l'instance Jeedom pour la synchronisation automatique des noms d'équipements et des pièces. |
+| **`JEEDOM_API_KEY`** | Chaîne | *(vide)* | Clé API Jeedom (trouvable dans *Réglages > Système > Configuration > API*). Peut aussi être saisie directement dans l'interface UI via le bouton "Sync Jeedom". |
 | **`MOCK_MQTT`** | Booléen | `false` | Si `true`, active le simulateur interne Zigbee2MQTT pour tester sans matériel. |
 
 ---
@@ -699,6 +701,8 @@ All configuration options can be defined in `.env` or passed as container enviro
 | **`Z2M_BASE_TOPIC`** | String | `zigbee2mqtt` | Zigbee2MQTT base topic prefix configured in `configuration.yaml`. |
 | **`DATABASE_PATH`** | Path | `./data/zigbee_sentinel.db` | Local SQLite database file location (`/app/data/...` in Docker). |
 | **`HISTORY_RETENTION_DAYS`** | Integer | `60` | Number of days to retain battery history and events before automatic pruning. |
+| **`JEEDOM_URL`** | URL | `http://127.0.0.1` | Local Jeedom instance URL for automated equipment and room names synchronization. |
+| **`JEEDOM_API_KEY`** | String | *(empty)* | Jeedom API key (found in *Settings > System > Configuration > API*). Can also be entered interactively in the web UI via the "Sync Jeedom" button. |
 | **`MOCK_MQTT`** | Boolean | `false` | When `true`, boots the built-in Zigbee2MQTT simulator for hardware-free testing. |
 
 ---

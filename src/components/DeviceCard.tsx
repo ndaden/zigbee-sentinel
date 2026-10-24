@@ -134,14 +134,19 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({
             <div className="min-w-0">
               <h3
                 className="text-sm font-semibold text-slate-100 truncate group-hover:text-white transition-colors"
-                title={device.friendly_name}
+                title={device.custom_name || device.friendly_name}
               >
-                {device.friendly_name}
+                {device.custom_name || device.friendly_name}
               </h3>
               <p
                 className="text-xs text-slate-400 truncate"
                 title={`${device.vendor || ''} ${device.model || ''}`.trim() || device.ieee_address}
               >
+                {device.custom_name && device.custom_name !== device.friendly_name ? (
+                  <span className="text-indigo-400 font-mono text-[10px] mr-1.5" title={`Identifiant Z2M : ${device.friendly_name}`}>
+                    {device.friendly_name} &bull;
+                  </span>
+                ) : null}
                 {device.vendor ? `${device.vendor} ` : ''}
                 {device.model || device.type}
               </p>

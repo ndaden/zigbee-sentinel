@@ -4,6 +4,7 @@ export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS devices (
     ieee_address TEXT PRIMARY KEY,
     friendly_name TEXT NOT NULL,
+    custom_name TEXT,
     type TEXT NOT NULL,
     model TEXT,
     vendor TEXT,
@@ -51,4 +52,11 @@ CREATE INDEX IF NOT EXISTS idx_diagnostic_logs_ieee ON diagnostic_logs(ieee_addr
 
 export function initSchema(db: Database.Database): void {
   db.exec(SCHEMA_SQL);
+
+  // Migration: ensure custom_name column exists if database was created previously
+  const tableInfo = db.prepare('PRAGMA table_info(devices)').all() as Array<{ name: string }>;
+  const hasCustomName = tableInfo.some((col) => col.name === 'custom_name');
+  if (!hasCustomName) {
+    db.exec('ALTER TABLE devices ADD COLUMN custom_name TEXT');
+  }
 }

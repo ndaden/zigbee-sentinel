@@ -231,6 +231,49 @@ describe('Fastify REST API & WebSocket Server', () => {
       expect(body.mqttConnected).toBeDefined();
       expect(body.bridge).toBeDefined();
     });
+
+    it('POST /api/devices/:ieee/rename should update custom_name in SQLite', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/devices/0x111/rename',
+        payload: { custom_name: '[Bureau] Lampe Principale' },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.custom_name).toBe('[Bureau] Lampe Principale');
+
+      const dev = db.getDevice('0x111');
+      expect(dev?.custom_name).toBe('[Bureau] Lampe Principale');
+    });
+
+    it('GET /api/jeedom/status should return configuration status', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/jeedom/status',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.configured).toBeDefined();
+      expect(body.url).toBeDefined();
+    });
+
+    it('POST /api/jeedom/sync should return 400 if no API key is provided', async () => {
+      const oldKey = process.env.JEEDOM_API_KEY;
+      delete process.env.JEEDOM_API_KEY;
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/api/jeedom/sync',
+          payload: {},
+        });
+        expect(res.statusCode).toBe(400);
+        const body = JSON.parse(res.payload);
+        expect(body.error).toContain('Clé API Jeedom manquante');
+      } finally {
+        if (oldKey) process.env.JEEDOM_API_KEY = oldKey;
+      }
+    });
   });
 
   describe('WebSocket Server', () => {

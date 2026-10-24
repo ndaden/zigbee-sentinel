@@ -157,7 +157,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                 id="history-modal-title"
                 className="text-base font-bold text-white truncate"
               >
-                {`Historique & Télémétrie : ${device.friendly_name}`}
+                {`Historique & Télémétrie : ${device.custom_name || device.friendly_name}`}
               </h2>
               <p className="text-xs text-slate-400 truncate mt-0.5">
                 {`${device.vendor ? `${device.vendor} ` : ''}${device.model || device.type} • IEEE : `}

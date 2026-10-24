@@ -16,6 +16,7 @@ export class DatabaseService {
   private getDevicesStmt: Database.Statement;
   private insertDeviceStmt: Database.Statement;
   private updateDeviceStmt: Database.Statement;
+  private updateCustomNameStmt: Database.Statement;
 
   private insertBatteryStmt: Database.Statement;
   private getBatteryHistoryStmt: Database.Statement;
@@ -56,10 +57,10 @@ export class DatabaseService {
 
     this.insertDeviceStmt = this.db.prepare(`
       INSERT INTO devices (
-        ieee_address, friendly_name, type, model, vendor, power_source,
+        ieee_address, friendly_name, custom_name, type, model, vendor, power_source,
         status, battery, linkquality, last_seen, created_at, updated_at
       ) VALUES (
-        @ieee_address, @friendly_name, @type, @model, @vendor, @power_source,
+        @ieee_address, @friendly_name, @custom_name, @type, @model, @vendor, @power_source,
         @status, @battery, @linkquality, @last_seen, @created_at, @updated_at
       )
     `);
@@ -67,6 +68,7 @@ export class DatabaseService {
     this.updateDeviceStmt = this.db.prepare(`
       UPDATE devices SET
         friendly_name = @friendly_name,
+        custom_name = @custom_name,
         type = @type,
         model = @model,
         vendor = @vendor,
@@ -78,6 +80,10 @@ export class DatabaseService {
         updated_at = @updated_at
       WHERE ieee_address = @ieee_address
     `);
+
+    this.updateCustomNameStmt = this.db.prepare(
+      'UPDATE devices SET custom_name = ?, updated_at = ? WHERE ieee_address = ?'
+    );
 
     this.insertBatteryStmt = this.db.prepare(`
       INSERT INTO history_battery (ieee_address, battery, recorded_at)
@@ -145,6 +151,7 @@ export class DatabaseService {
       this.insertDeviceStmt.run({
         ieee_address: device.ieee_address,
         friendly_name: device.friendly_name ?? device.ieee_address,
+        custom_name: device.custom_name ?? null,
         type: device.type ?? 'EndDevice',
         model: device.model ?? null,
         vendor: device.vendor ?? null,
@@ -160,6 +167,7 @@ export class DatabaseService {
       const updated: ZigbeeDevice = {
         ieee_address: existing.ieee_address,
         friendly_name: device.friendly_name !== undefined ? device.friendly_name : existing.friendly_name,
+        custom_name: device.custom_name !== undefined ? device.custom_name : (existing.custom_name ?? null),
         type: device.type !== undefined ? device.type : existing.type,
         model: device.model !== undefined ? device.model : existing.model,
         vendor: device.vendor !== undefined ? device.vendor : existing.vendor,
@@ -174,6 +182,10 @@ export class DatabaseService {
 
       this.updateDeviceStmt.run(updated);
     }
+  }
+
+  updateDeviceCustomName(ieee_address: string, custom_name: string | null): void {
+    this.updateCustomNameStmt.run(custom_name, Date.now(), ieee_address);
   }
 
   getDevice(ieee_address: string): ZigbeeDevice | null {

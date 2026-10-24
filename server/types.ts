@@ -5,6 +5,7 @@ export type DeviceStatus = 'online' | 'offline';
 export interface ZigbeeDevice {
   ieee_address: string;
   friendly_name: string;
+  custom_name?: string | null;
   type: DeviceType;
   model?: string | null;
   vendor?: string | null;

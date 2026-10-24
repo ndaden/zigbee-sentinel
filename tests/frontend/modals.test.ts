@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { DiagnosticModal } from '../../src/components/DiagnosticModal';
 import { HistoryModal } from '../../src/components/HistoryModal';
+import { JeedomSyncModal } from '../../src/components/JeedomSyncModal';
 import type {
   ZigbeeDevice,
   DiagnosticReport,
@@ -112,6 +113,20 @@ describe('DiagnosticModal component', () => {
     expect(html).toContain('Innr');
     expect(html).toContain('Smart Plug SP120');
     expect(html).toContain('Hors-ligne');
+  });
+
+  it('renders custom_name in DiagnosticModal title when defined', () => {
+    const customDevice: ZigbeeDevice = {
+      ...routerDevice,
+      custom_name: '[Cuisine] Prise Cafetière',
+    };
+    const html = renderToString(
+      React.createElement(DiagnosticModal, {
+        device: customDevice,
+        onClose: vi.fn(),
+      })
+    );
+    expect(html).toContain('Assistant Diagnostic : [Cuisine] Prise Cafetière');
   });
 
   it('renders loading state initially when no initialReport is provided', () => {
@@ -299,6 +314,20 @@ describe('HistoryModal component', () => {
     expect(html).toContain('Évolution de la batterie');
   });
 
+  it('renders custom_name in HistoryModal title when defined', () => {
+    const customDevice: ZigbeeDevice = {
+      ...batteryDevice,
+      custom_name: '[Salon] Sonde Température',
+    };
+    const html = renderToString(
+      React.createElement(HistoryModal, {
+        device: customDevice,
+        onClose: vi.fn(),
+      })
+    );
+    expect(html).toContain('Historique &amp; Télémétrie : [Salon] Sonde Température');
+  });
+
   it('renders connection events list with duration offline badge', () => {
     const html = renderToString(
       React.createElement(HistoryModal, {
@@ -361,5 +390,32 @@ describe('HistoryModal component', () => {
     );
 
     expect(html).toContain('Aucun événement de déconnexion enregistré.');
+  });
+});
+
+describe('JeedomSyncModal component', () => {
+  it('renders Jeedom sync modal with inputs, descriptions, and action buttons', () => {
+    const html = renderToString(
+      React.createElement(JeedomSyncModal, {
+        isOpen: true,
+        onClose: vi.fn(),
+        onSync: vi.fn(),
+      })
+    );
+    expect(html).toContain('Synchroniser les Noms Jeedom');
+    expect(html).toContain('URL de Jeedom');
+    expect(html).toContain('Clé API Jeedom');
+    expect(html).toContain('Synchroniser');
+  });
+
+  it('renders null when isOpen is false', () => {
+    const html = renderToString(
+      React.createElement(JeedomSyncModal, {
+        isOpen: false,
+        onClose: vi.fn(),
+        onSync: vi.fn(),
+      })
+    );
+    expect(html).toBe('');
   });
 });

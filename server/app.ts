@@ -8,6 +8,7 @@ import { MqttService } from './mqtt/client.js';
 import { runMqttMock } from './mqtt/mock.js';
 import { DiagnosticEngine } from './diagnostic/engine.js';
 import { WebSocketManager } from './ws/server.js';
+import { fetchJeedomDevices, matchJeedomDeviceToZigbee } from './jeedom/client.js';
 
 export interface BuildAppOptions {
   db?: DatabaseService;
@@ -309,6 +310,95 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         : 'Le pont Zigbee2MQTT n’a pas répondu à la commande de redémarrage dans le délai imparti',
     });
   });
+
+  app.post<{ Params: { ieee: string }; Body?: { custom_name?: string } }>(
+    '/api/devices/:ieee/rename',
+    async (req, reply) => {
+      const { ieee } = req.params;
+      const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
+
+      if (!device) {
+        return reply.status(404).send({ error: `Device '${ieee}' not found` });
+      }
+
+      const customName = req.body?.custom_name?.trim() || null;
+      db.updateDeviceCustomName(device.ieee_address, customName);
+
+      const updated = db.getDevice(device.ieee_address);
+      if (updated) {
+        wsManager.broadcast({ type: 'device_updated', data: updated });
+      }
+
+      return reply.status(200).send({
+        success: true,
+        ieee: device.ieee_address,
+        custom_name: customName,
+      });
+    }
+  );
+
+  app.get('/api/jeedom/status', async (_req, reply) => {
+    const configured = Boolean(
+      process.env.JEEDOM_API_KEY && process.env.JEEDOM_API_KEY.trim() !== ''
+    );
+    return reply.status(200).send({
+      configured,
+      url: process.env.JEEDOM_URL || 'http://127.0.0.1',
+    });
+  });
+
+  app.post<{ Body?: { apiKey?: string; url?: string } }>(
+    '/api/jeedom/sync',
+    async (req, reply) => {
+      const apiKey = req.body?.apiKey || process.env.JEEDOM_API_KEY || '';
+      const url = req.body?.url || process.env.JEEDOM_URL || 'http://127.0.0.1';
+
+      if (!apiKey || apiKey.trim() === '') {
+        return reply.status(400).send({
+          error:
+            'Clé API Jeedom manquante. Veuillez renseigner JEEDOM_API_KEY ou fournir la clé dans la requête.',
+        });
+      }
+
+      try {
+        const jeedomDevices = await fetchJeedomDevices(url, apiKey);
+        const zigbeeDevices = db.getDevices();
+
+        const synced: Array<{ ieee: string; previousName: string; newName: string }> = [];
+
+        for (const eq of jeedomDevices) {
+          const match = matchJeedomDeviceToZigbee(eq, zigbeeDevices);
+          if (match) {
+            const rawHumanName = eq.humanName || eq.name;
+            const newName = rawHumanName.trim();
+            if (newName) {
+              db.updateDeviceCustomName(match.ieee_address, newName);
+              const updated = db.getDevice(match.ieee_address);
+              if (updated) {
+                wsManager.broadcast({ type: 'device_updated', data: updated });
+              }
+              synced.push({
+                ieee: match.ieee_address,
+                previousName: match.friendly_name,
+                newName,
+              });
+            }
+          }
+        }
+
+        return reply.status(200).send({
+          success: true,
+          count: synced.length,
+          totalJeedomDevices: jeedomDevices.length,
+          synced,
+        });
+      } catch (err: any) {
+        return reply.status(500).send({
+          error: err?.message || 'Erreur lors de la synchronisation avec Jeedom',
+        });
+      }
+    }
+  );
 
   app.get('/api/status', async (_req, reply) => {
     const bridgeState = mqttService
