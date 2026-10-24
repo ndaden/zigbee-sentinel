@@ -166,6 +166,16 @@ export class MqttService extends EventEmitter {
     });
   }
 
+  private matchesDeviceId(expected: string, payloadId?: string): boolean {
+    if (!payloadId || !expected) return false;
+    if (payloadId === expected) return true;
+    const dev = this.handler.findDevice(expected);
+    if (dev && (dev.ieee_address === payloadId || dev.friendly_name === payloadId)) {
+      return true;
+    }
+    return false;
+  }
+
   async pingDevice(friendlyName: string, timeoutMs: number = 5000): Promise<boolean> {
     const reqTopic = `${this.baseTopic}/bridge/request/device/ping`;
     const resSubTopic = 'bridge/response/device/ping';
@@ -185,7 +195,7 @@ export class MqttService extends EventEmitter {
             event.payload?.data?.id ||
             event.payload?.data?.friendly_name ||
             event.payload?.data?.ieee_address;
-          if (id && id === friendlyName) {
+          if (this.matchesDeviceId(friendlyName, id)) {
             resolved = true;
             cleanup();
             resolve(event.payload?.status === 'ok');
@@ -232,7 +242,7 @@ export class MqttService extends EventEmitter {
             event.payload?.data?.id ||
             event.payload?.data?.friendly_name ||
             event.payload?.data?.ieee_address;
-          if (id && id === friendlyName) {
+          if (this.matchesDeviceId(friendlyName, id)) {
             resolved = true;
             cleanup();
             resolve(event.payload?.status === 'ok');
@@ -251,6 +261,160 @@ export class MqttService extends EventEmitter {
       this.handler.on('response', onResponse);
 
       this.publish(reqTopic, JSON.stringify({ id: friendlyName })).catch(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  async configureDevice(friendlyNameOrIeee: string, timeoutMs: number = 8000): Promise<boolean> {
+    const reqTopic = `${this.baseTopic}/bridge/request/device/configure`;
+    const resSubTopic = 'bridge/response/device/configure';
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        this.handler.off('response', onResponse);
+      };
+
+      const onResponse = (event: { topic: string; payload: any }) => {
+        if (event.topic === resSubTopic) {
+          const id =
+            event.payload?.data?.id ||
+            event.payload?.data?.friendly_name ||
+            event.payload?.data?.ieee_address;
+          if (this.matchesDeviceId(friendlyNameOrIeee, id)) {
+            resolved = true;
+            cleanup();
+            resolve(event.payload?.status === 'ok');
+          }
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      }, timeoutMs);
+
+      this.handler.on('response', onResponse);
+
+      this.publish(reqTopic, JSON.stringify({ id: friendlyNameOrIeee })).catch(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  async removeDevice(
+    friendlyNameOrIeee: string,
+    force: boolean = true,
+    timeoutMs: number = 8000
+  ): Promise<boolean> {
+    const reqTopic = `${this.baseTopic}/bridge/request/device/remove`;
+    const resSubTopic = 'bridge/response/device/remove';
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        this.handler.off('response', onResponse);
+      };
+
+      const onResponse = (event: { topic: string; payload: any }) => {
+        if (event.topic === resSubTopic) {
+          const id =
+            event.payload?.data?.id ||
+            event.payload?.data?.friendly_name ||
+            event.payload?.data?.ieee_address;
+          if (this.matchesDeviceId(friendlyNameOrIeee, id)) {
+            resolved = true;
+            cleanup();
+            resolve(event.payload?.status === 'ok');
+          }
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      }, timeoutMs);
+
+      this.handler.on('response', onResponse);
+
+      this.publish(
+        reqTopic,
+        JSON.stringify({ id: friendlyNameOrIeee, force, block: false })
+      ).catch(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  async resetDevice(
+    friendlyNameOrIeee: string,
+    permitJoinTime: number = 120,
+    timeoutMs: number = 8000
+  ): Promise<boolean> {
+    // 1. Remove device with force=true to clear coordinator state
+    await this.removeDevice(friendlyNameOrIeee, true, timeoutMs);
+    // 2. Open pairing network for permitJoinTime seconds so the sensor can re-join
+    const permitJoinSuccess = await this.permitJoin(permitJoinTime);
+    return permitJoinSuccess;
+  }
+
+  async restartBridge(timeoutMs: number = 15000): Promise<boolean> {
+    const reqTopic = `${this.baseTopic}/bridge/request/restart`;
+    const resSubTopic = 'bridge/response/restart';
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        this.handler.off('response', onResponse);
+      };
+
+      const onResponse = (event: { topic: string; payload: any }) => {
+        if (event.topic === resSubTopic) {
+          resolved = true;
+          cleanup();
+          resolve(event.payload?.status === 'ok');
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      }, timeoutMs);
+
+      this.handler.on('response', onResponse);
+
+      this.publish(reqTopic, JSON.stringify({})).catch(() => {
         if (!resolved) {
           resolved = true;
           cleanup();

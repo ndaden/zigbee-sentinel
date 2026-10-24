@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Layers,
   Loader2,
+  Power,
 } from 'lucide-react';
 import type { BridgeStatus, ZigbeeDevice } from '../types/device';
 import { calculateDeviceStats } from '../utils/deviceUtils';
@@ -18,6 +19,7 @@ export interface HeaderProps {
   devices: ZigbeeDevice[];
   permitJoinTimer: number;
   onTriggerPermitJoin: (seconds?: number) => Promise<boolean>;
+  onTriggerRestartBridge?: () => Promise<{ success: boolean; message: string }>;
   isPermitJoinLoading?: boolean;
 }
 
@@ -26,9 +28,11 @@ export const Header: React.FC<HeaderProps> = ({
   devices,
   permitJoinTimer,
   onTriggerPermitJoin,
+  onTriggerRestartBridge,
   isPermitJoinLoading = false,
 }) => {
   const [internalLoading, setInternalLoading] = useState(false);
+  const [isRestartingBridge, setIsRestartingBridge] = useState(false);
   const stats = calculateDeviceStats(devices);
 
   const isMqttConnected = Boolean(bridgeStatus?.mqttConnected);
@@ -43,6 +47,21 @@ export const Header: React.FC<HeaderProps> = ({
       await onTriggerPermitJoin(120);
     } finally {
       setInternalLoading(false);
+    }
+  };
+
+  const handleRestartBridgeClick = async () => {
+    if (isRestartingBridge || !onTriggerRestartBridge) return;
+    const confirm = window.confirm(
+      'Voulez-vous redémarrer le pont Zigbee2MQTT et réinitialiser le coordinateur radio ConBee II ?'
+    );
+    if (!confirm) return;
+
+    setIsRestartingBridge(true);
+    try {
+      await onTriggerRestartBridge();
+    } finally {
+      setIsRestartingBridge(false);
     }
   };
 
@@ -131,6 +150,20 @@ export const Header: React.FC<HeaderProps> = ({
                   <Radio className="h-3.5 w-3.5" />
                 )}
                 <span>Permit Join (120s)</span>
+              </button>
+            )}
+
+            {/* Restart Zigbee2MQTT Button */}
+            {onTriggerRestartBridge && (
+              <button
+                type="button"
+                onClick={handleRestartBridgeClick}
+                disabled={isRestartingBridge}
+                title="Redémarrer le service Zigbee2MQTT et réinitialiser le contrôleur ConBee II"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors disabled:opacity-50"
+              >
+                <Power className={`h-3.5 w-3.5 ${isRestartingBridge ? 'animate-spin text-indigo-400' : ''}`} />
+                <span>{isRestartingBridge ? 'Redémarrage...' : 'Redémarrer Zigbee'}</span>
               </button>
             )}
           </div>

@@ -165,6 +165,23 @@ export function runMqttMock(
           `${baseTopic}/bridge/response/device/interview`,
           Buffer.from(JSON.stringify({ data: { id }, status: 'ok' }))
         );
+      } else if (topic === `${baseTopic}/bridge/request/device/configure`) {
+        const id = payload.id;
+        mqttService.handleMessage(
+          `${baseTopic}/bridge/response/device/configure`,
+          Buffer.from(JSON.stringify({ data: { id }, status: 'ok' }))
+        );
+      } else if (topic === `${baseTopic}/bridge/request/device/remove`) {
+        const id = payload.id;
+        mqttService.handleMessage(
+          `${baseTopic}/bridge/response/device/remove`,
+          Buffer.from(JSON.stringify({ data: { id, block: false, force: true }, status: 'ok' }))
+        );
+      } else if (topic === `${baseTopic}/bridge/request/restart`) {
+        mqttService.handleMessage(
+          `${baseTopic}/bridge/response/restart`,
+          Buffer.from(JSON.stringify({ data: {}, status: 'ok' }))
+        );
       } else if (topic === `${baseTopic}/bridge/request/permit_join`) {
         const time = payload.time ?? 120;
         const value = payload.value !== false;

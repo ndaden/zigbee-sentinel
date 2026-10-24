@@ -42,7 +42,6 @@ export const apiClient = {
   async runDiagnostic(ieee: string): Promise<DiagnosticReport> {
     const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/diagnose`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse<DiagnosticReport>(res);
   },
@@ -52,7 +51,6 @@ export const apiClient = {
   ): Promise<{ success: boolean; ieee: string; friendly_name: string }> {
     const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/ping`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse<{ success: boolean; ieee: string; friendly_name: string }>(res);
   },
@@ -62,9 +60,41 @@ export const apiClient = {
   ): Promise<{ success: boolean; ieee: string; friendly_name: string }> {
     const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/interview`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
     });
     return handleResponse<{ success: boolean; ieee: string; friendly_name: string }>(res);
+  },
+
+  async configureDevice(
+    ieee: string
+  ): Promise<{ success: boolean; ieee: string; friendly_name: string }> {
+    const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/configure`, {
+      method: 'POST',
+    });
+    return handleResponse<{ success: boolean; ieee: string; friendly_name: string }>(res);
+  },
+
+  async resetDevice(
+    ieee: string,
+    permitJoinTime: number = 120
+  ): Promise<{ success: boolean; ieee: string; friendly_name: string; permitJoinTime: number }> {
+    const res = await fetch(`/api/devices/${encodeURIComponent(ieee)}/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permitJoinTime }),
+    });
+    return handleResponse<{
+      success: boolean;
+      ieee: string;
+      friendly_name: string;
+      permitJoinTime: number;
+    }>(res);
+  },
+
+  async restartBridge(): Promise<{ success: boolean; message: string }> {
+    const res = await fetch('/api/bridge/restart', {
+      method: 'POST',
+    });
+    return handleResponse<{ success: boolean; message: string }>(res);
   },
 
   async permitJoin(seconds: number = 120): Promise<ActionResult & { success: boolean; time: number }> {

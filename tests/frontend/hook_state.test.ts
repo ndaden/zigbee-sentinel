@@ -179,6 +179,46 @@ describe('apiClient', () => {
     expect(result.success).toBe(true);
   });
 
+  it('configureDevice should POST to /api/devices/:ieee/configure', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, ieee: '0x123', friendly_name: 'Capteur' }),
+    });
+
+    const result = await apiClient.configureDevice('0x123');
+    expect(mockFetch).toHaveBeenCalledWith('/api/devices/0x123/configure', expect.objectContaining({ method: 'POST' }));
+    expect(result.success).toBe(true);
+  });
+
+  it('resetDevice should POST to /api/devices/:ieee/reset with permitJoinTime body', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, ieee: '0x123', friendly_name: 'Capteur', permitJoinTime: 120 }),
+    });
+
+    const result = await apiClient.resetDevice('0x123', 120);
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/devices/0x123/reset',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permitJoinTime: 120 }),
+      })
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('restartBridge should POST to /api/bridge/restart', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, message: 'Restarted' }),
+    });
+
+    const result = await apiClient.restartBridge();
+    expect(mockFetch).toHaveBeenCalledWith('/api/bridge/restart', expect.objectContaining({ method: 'POST' }));
+    expect(result.success).toBe(true);
+  });
+
   it('permitJoin should POST to /api/bridge/permit-join with time body', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,

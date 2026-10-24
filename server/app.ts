@@ -24,6 +24,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     logger: options.logger ?? false,
   });
 
+  // Tolerate empty JSON bodies gracefully without failing with FST_ERR_CTP_EMPTY_JSON_BODY
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_req, body: string | Buffer, done) => {
+      try {
+        const str = typeof body === 'string' ? body : body?.toString('utf-8');
+        const json = str && str.trim() !== '' ? JSON.parse(str) : {};
+        done(null, json);
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    }
+  );
+
   const db = options.db ?? new DatabaseService();
   const isMock = options.mockMqtt ?? process.env.MOCK_MQTT === 'true';
   const mqttService =
@@ -68,6 +83,23 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           mqttService.handleMessage(
             `${baseTopic}/bridge/response/device/interview`,
             Buffer.from(JSON.stringify({ data: { id }, status: 'ok' }))
+          );
+        } else if (topic === `${baseTopic}/bridge/request/device/configure`) {
+          const id = payload.id;
+          mqttService.handleMessage(
+            `${baseTopic}/bridge/response/device/configure`,
+            Buffer.from(JSON.stringify({ data: { id }, status: 'ok' }))
+          );
+        } else if (topic === `${baseTopic}/bridge/request/device/remove`) {
+          const id = payload.id;
+          mqttService.handleMessage(
+            `${baseTopic}/bridge/response/device/remove`,
+            Buffer.from(JSON.stringify({ data: { id, block: false, force: true }, status: 'ok' }))
+          );
+        } else if (topic === `${baseTopic}/bridge/request/restart`) {
+          mqttService.handleMessage(
+            `${baseTopic}/bridge/response/restart`,
+            Buffer.from(JSON.stringify({ data: {}, status: 'ok' }))
           );
         } else if (topic === `${baseTopic}/bridge/request/permit_join`) {
           const time = payload.time ?? 120;
@@ -128,21 +160,31 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
   );
 
+  const handleDiagnose = async (
+    req: { params: { ieee: string } },
+    reply: { status: (code: number) => { send: (body: any) => any } }
+  ) => {
+    const { ieee } = req.params;
+    const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
+
+    if (!device) {
+      return reply.status(404).send({ error: `Device '${ieee}' not found` });
+    }
+
+    const batteryHistory = db.getBatteryHistory(device.ieee_address);
+    const report = DiagnosticEngine.analyze(device, batteryHistory);
+
+    return reply.status(200).send(report);
+  };
+
+  app.get<{ Params: { ieee: string } }>(
+    '/api/devices/:ieee/diagnose',
+    handleDiagnose
+  );
+
   app.post<{ Params: { ieee: string } }>(
     '/api/devices/:ieee/diagnose',
-    async (req, reply) => {
-      const { ieee } = req.params;
-      const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
-
-      if (!device) {
-        return reply.status(404).send({ error: `Device '${ieee}' not found` });
-      }
-
-      const batteryHistory = db.getBatteryHistory(device.ieee_address);
-      const report = DiagnosticEngine.analyze(device, batteryHistory);
-
-      return reply.status(200).send(report);
-    }
+    handleDiagnose
   );
 
   app.post<{ Params: { ieee: string } }>(
@@ -191,6 +233,54 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }
   );
 
+  app.post<{ Params: { ieee: string } }>(
+    '/api/devices/:ieee/configure',
+    async (req, reply) => {
+      const { ieee } = req.params;
+      const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
+
+      if (!device) {
+        return reply.status(404).send({ error: `Device '${ieee}' not found` });
+      }
+
+      if (!mqttService) {
+        return reply.status(503).send({ error: 'MQTT service not available' });
+      }
+
+      const success = await mqttService.configureDevice(device.friendly_name);
+      return reply.status(200).send({
+        success,
+        ieee: device.ieee_address,
+        friendly_name: device.friendly_name,
+      });
+    }
+  );
+
+  app.post<{ Params: { ieee: string }; Body?: { permitJoinTime?: number } }>(
+    '/api/devices/:ieee/reset',
+    async (req, reply) => {
+      const { ieee } = req.params;
+      const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
+
+      if (!device) {
+        return reply.status(404).send({ error: `Device '${ieee}' not found` });
+      }
+
+      if (!mqttService) {
+        return reply.status(503).send({ error: 'MQTT service not available' });
+      }
+
+      const permitJoinTime = req.body?.permitJoinTime ?? 120;
+      const success = await mqttService.resetDevice(device.friendly_name, permitJoinTime);
+      return reply.status(200).send({
+        success,
+        ieee: device.ieee_address,
+        friendly_name: device.friendly_name,
+        permitJoinTime,
+      });
+    }
+  );
+
   app.post<{ Body?: { time?: number; seconds?: number } }>(
     '/api/bridge/permit-join',
     async (req, reply) => {
@@ -205,6 +295,20 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       return reply.status(200).send({ success, time: seconds });
     }
   );
+
+  app.post('/api/bridge/restart', async (_req, reply) => {
+    if (!mqttService) {
+      return reply.status(503).send({ error: 'MQTT service not available' });
+    }
+
+    const success = await mqttService.restartBridge();
+    return reply.status(200).send({
+      success,
+      message: success
+        ? 'Commande de redémarrage transmise avec succès au pont Zigbee2MQTT'
+        : 'Le pont Zigbee2MQTT n’a pas répondu à la commande de redémarrage dans le délai imparti',
+    });
+  });
 
   app.get('/api/status', async (_req, reply) => {
     const bridgeState = mqttService

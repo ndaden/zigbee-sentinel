@@ -11,9 +11,12 @@ import {
   Clock,
   Sparkles,
   PartyPopper,
-  Zap,
   Wrench,
   HelpCircle,
+  RotateCcw,
+  Sliders,
+  Power,
+  RotateCw,
 } from 'lucide-react';
 import type { ZigbeeDevice, DiagnosticReport } from '../types/device';
 import { apiClient } from '../api/client';
@@ -24,6 +27,9 @@ export interface DiagnosticModalProps {
   onClose: () => void;
   onPing?: (device: ZigbeeDevice) => Promise<boolean | void> | void;
   onInterview?: (device: ZigbeeDevice) => Promise<boolean | void> | void;
+  onConfigure?: (device: ZigbeeDevice) => Promise<boolean | void> | void;
+  onReset?: (device: ZigbeeDevice) => Promise<boolean | void> | void;
+  onRestartBridge?: () => Promise<{ success: boolean; message: string }>;
   onPermitJoin?: (seconds?: number) => Promise<boolean | void> | void;
   permitJoinTimer?: number;
   runDiagnostic?: (ieee: string) => Promise<DiagnosticReport>;
@@ -36,6 +42,9 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
   onClose,
   onPing,
   onInterview,
+  onConfigure,
+  onReset,
+  onRestartBridge,
   onPermitJoin,
   permitJoinTimer = 0,
   runDiagnostic,
@@ -49,7 +58,11 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
   // Per-action loading & feedback states
   const [isPinging, setIsPinging] = useState(false);
   const [isInterviewing, setIsInterviewing] = useState(false);
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isRestartingBridge, setIsRestartingBridge] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [resetActive, setResetActive] = useState(false);
   const [feedback, setFeedback] = useState<{
     action: string;
     type: 'success' | 'error';
@@ -74,9 +87,11 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
       const diagnosticFetcher = runDiagnostic || apiClient.runDiagnostic;
       const data = await diagnosticFetcher(device.ieee_address);
       setReport(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[DiagnosticModal] Failed to fetch report:', err);
-      setError('Impossible de générer le rapport diagnostic pour cet équipement.');
+      setError(
+        err?.message || 'Impossible de générer le rapport diagnostic pour cet équipement.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -100,11 +115,18 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
   }, [onClose]);
 
   const handlePingAction = async () => {
-    if (!onPing || isPinging) return;
+    if (isPinging) return;
     setIsPinging(true);
     setFeedback(null);
     try {
-      const res = await onPing(device);
+      let res: boolean | void = false;
+      if (onPing) {
+        res = await onPing(device);
+      } else {
+        const pingRes = await apiClient.pingDevice(device.ieee_address);
+        res = pingRes.success;
+      }
+
       if (res === false) {
         setFeedback({
           action: 'ping',
@@ -115,7 +137,7 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
         setFeedback({
           action: 'ping',
           type: 'success',
-          message: 'Ping réussi ! Le routeur a confirmé sa présence radio.',
+          message: 'Ping réussi ! Le périphérique a confirmé sa liaison radio.',
         });
       }
     } catch {
@@ -130,11 +152,18 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
   };
 
   const handleInterviewAction = async () => {
-    if (!onInterview || isInterviewing) return;
+    if (isInterviewing) return;
     setIsInterviewing(true);
     setFeedback(null);
     try {
-      const res = await onInterview(device);
+      let res: boolean | void = false;
+      if (onInterview) {
+        res = await onInterview(device);
+      } else {
+        const interviewRes = await apiClient.interviewDevice(device.ieee_address);
+        res = interviewRes.success;
+      }
+
       if (res === false) {
         setFeedback({
           action: 'interview',
@@ -156,6 +185,120 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
       });
     } finally {
       setIsInterviewing(false);
+    }
+  };
+
+  const handleConfigureAction = async () => {
+    if (isConfiguring) return;
+    setIsConfiguring(true);
+    setFeedback(null);
+    try {
+      let res: boolean | void = false;
+      if (onConfigure) {
+        res = await onConfigure(device);
+      } else {
+        const confRes = await apiClient.configureDevice(device.ieee_address);
+        res = confRes.success;
+      }
+
+      if (res === false) {
+        setFeedback({
+          action: 'configure',
+          type: 'error',
+          message: 'Échec de la reconfiguration des liaisons radio.',
+        });
+      } else {
+        setFeedback({
+          action: 'configure',
+          type: 'success',
+          message: 'Liaisons et rapports d’état reconfigurés avec succès.',
+        });
+      }
+    } catch {
+      setFeedback({
+        action: 'configure',
+        type: 'error',
+        message: 'Erreur lors de la reconfiguration de l’équipement.',
+      });
+    } finally {
+      setIsConfiguring(false);
+    }
+  };
+
+  const handleResetAction = async () => {
+    if (isResetting) return;
+    setIsResetting(true);
+    setFeedback(null);
+    try {
+      let res: boolean | void = false;
+      if (onReset) {
+        res = await onReset(device);
+      } else {
+        const resetRes = await apiClient.resetDevice(device.ieee_address, 120);
+        res = resetRes.success;
+      }
+
+      if (res === false) {
+        setFeedback({
+          action: 'reset',
+          type: 'error',
+          message: 'Échec de la réinitialisation de la connexion.',
+        });
+      } else {
+        setResetActive(true);
+        setFeedback({
+          action: 'reset',
+          type: 'success',
+          message:
+            'Cache purgé et réseau ouvert pour 120s. Appuyez sur le bouton physique du capteur.',
+        });
+      }
+    } catch {
+      setFeedback({
+        action: 'reset',
+        type: 'error',
+        message: 'Erreur lors de la réinitialisation de la connexion.',
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const handleRestartBridgeAction = async () => {
+    if (isRestartingBridge) return;
+    const confirm = window.confirm(
+      'Voulez-vous redémarrer le service Zigbee2MQTT et réinitialiser le coordinateur radio ?'
+    );
+    if (!confirm) return;
+
+    setIsRestartingBridge(true);
+    setFeedback(null);
+    try {
+      const res = onRestartBridge
+        ? await onRestartBridge()
+        : await apiClient.restartBridge();
+
+      if (res.success) {
+        setFeedback({
+          action: 'restart_bridge',
+          type: 'success',
+          message: res.message || 'Service Zigbee2MQTT redémarré avec succès.',
+        });
+      } else {
+        setFeedback({
+          action: 'restart_bridge',
+          type: 'error',
+          message: res.message || 'Échec du redémarrage du service Zigbee2MQTT.',
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        action: 'restart_bridge',
+        type: 'error',
+        message: err.message || 'Erreur lors de la commande de redémarrage.',
+      });
+    } finally {
+      setIsRestartingBridge(false);
     }
   };
 
@@ -324,32 +467,32 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
 
           {/* Loading Skeleton */}
           {isLoading && !report && (
-            <div className="flex flex-col items-center justify-center py-12 space-y-3">
-              <RefreshCw className="h-8 w-8 animate-spin text-indigo-400" />
-              <p className="text-sm text-slate-300 font-medium">
+            <div className="flex flex-col items-center justify-center py-6 space-y-3">
+              <RefreshCw className="h-7 w-7 animate-spin text-indigo-400" />
+              <p className="text-xs text-slate-300 font-medium">
                 Analyse télémétrique et diagnostic en cours...
               </p>
             </div>
           )}
 
-          {/* Error State */}
+          {/* Error State for Automated Report */}
           {error && !isLoading && (
-            <div className="p-4 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-300 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <AlertTriangle className="h-5 w-5 text-rose-400 flex-shrink-0" />
-                <span className="text-xs font-medium">{error}</span>
+            <div className="p-3.5 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-300 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <AlertTriangle className="h-4 w-4 text-rose-400 flex-shrink-0" />
+                <span className="text-xs font-medium truncate">{error}</span>
               </div>
               <button
                 type="button"
                 onClick={fetchReport}
-                className="px-3 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-900 text-rose-200 text-xs font-semibold border border-rose-500/40"
+                className="ml-2 px-2.5 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-900 text-rose-200 text-xs font-semibold border border-rose-500/40 flex-shrink-0"
               >
                 Réessayer
               </button>
             </div>
           )}
 
-          {/* SECTION 1: Automated Findings */}
+          {/* SECTION 1: Automated Findings (if report is loaded) */}
           {report && !isLoading && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -379,52 +522,32 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
                   ) : (
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 mt-0.5 flex-shrink-0" />
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`text-xs uppercase font-bold tracking-wider ${
-                          report.severity === 'critical'
-                            ? 'text-rose-400'
-                            : report.severity === 'warning'
-                            ? 'text-amber-400'
-                            : 'text-emerald-400'
-                        }`}
-                      >
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold uppercase tracking-wider">
                         {report.severity === 'critical'
                           ? 'Anomalie Critique'
                           : report.severity === 'warning'
                           ? 'Avertissement'
                           : 'Fonctionnement Nominal'}
                       </span>
-                      <span
-                        className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${
-                          report.severity === 'critical'
-                            ? 'bg-rose-900/60 border-rose-500/30 text-rose-200'
-                            : report.severity === 'warning'
-                            ? 'bg-amber-900/60 border-amber-500/30 text-amber-200'
-                            : 'bg-emerald-900/60 border-emerald-500/30 text-emerald-200'
-                        }`}
-                      >
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-900/60 border border-white/10 font-medium">
                         {`Cause suspectée : ${getLikelyCauseLabel(report.likelyCause)}`}
                       </span>
                     </div>
-                    <p className="mt-1.5 text-sm font-medium leading-relaxed text-slate-100">
+                    <p className="mt-1 text-xs leading-relaxed font-medium">
                       {report.verdict}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Details Grid (Battery, LQI, Last Seen) */}
+              {/* Details Metrics Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Battery card */}
                 <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 flex flex-col justify-between">
                   <div className="flex items-center space-x-2 text-slate-400 text-xs">
-                    {isRouter ? (
-                      <Zap className="h-3.5 w-3.5 text-cyan-400" />
-                    ) : (
-                      <Battery className="h-3.5 w-3.5 text-amber-400" />
-                    )}
+                    <Battery className="h-3.5 w-3.5 text-amber-400" />
                     <span className="font-semibold uppercase tracking-wider text-[10px]">
                       Alimentation
                     </span>
@@ -463,142 +586,226 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
             </div>
           )}
 
-          {/* SECTION 2: Actionable Repair Steps */}
-          {report && !isLoading && (
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  2. Procédure de Dépannage
-                </h3>
-                <span className="text-[11px] text-slate-500 font-medium">Actions ciblées</span>
-              </div>
+          {/* SECTION 2: Actionable Repair Steps (ALWAYS VISIBLE & ACCESSIBLE) */}
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                2. Actions de Réparation & Dépannage
+              </h3>
+              <span className="text-[11px] text-slate-500 font-medium">Interventions directes</span>
+            </div>
 
-              <div className="space-y-3">
-                {/* Router Ping Action */}
-                {isRouter && (
-                  <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-2">
-                        <Activity className="h-4 w-4 text-cyan-400" />
-                        <h4 className="text-xs font-semibold text-slate-200">
-                          Envoyer un Ping forcé
-                        </h4>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Envoie une trame de test directe pour vérifier si le routeur répond sur la bande radio ConBee II.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handlePingAction}
-                      disabled={isPinging}
-                      className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
-                    >
-                      <Activity className={`h-3.5 w-3.5 ${isPinging ? 'animate-spin' : ''}`} />
-                      <span>{isPinging ? 'Ping en cours...' : 'Tester le Ping'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Battery Sensor Permit Join & Wake Up Procedure */}
-                {!isRouter && (
-                  <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <Radio className="h-4 w-4 text-indigo-400" />
-                          <h4 className="text-xs font-semibold text-slate-200">
-                            Ouvrir l'appairage Zigbee (2 min)
-                          </h4>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Autorise les nouveaux raccordements ou la ré-association automatique des capteurs endormis.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        {permitJoinTimer > 0 ? (
-                          <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-950/70 border border-amber-500/40 text-amber-300 text-xs font-semibold animate-pulse">
-                            <span className="h-2 w-2 rounded-full bg-amber-400" />
-                            <span>{`Appairage actif : ${permitJoinTimer}s`}</span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handlePermitJoinAction}
-                            disabled={isJoining}
-                            className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
-                          >
-                            <Radio className={`h-3.5 w-3.5 ${isJoining ? 'animate-spin' : ''}`} />
-                            <span>Ouvrir l'appairage</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Physical sensor button press instruction */}
-                    <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-start space-x-2.5">
-                      <HelpCircle className="h-4 w-4 text-indigo-400 mt-0.5 flex-shrink-0" />
-                      <div className="text-xs">
-                        <span className="font-semibold text-indigo-200">
-                          Instruction de réveil physique :
-                        </span>
-                        <p className="mt-0.5 text-indigo-300/90 leading-relaxed">
-                          Appuyez brièvement sur le bouton physique du capteur pour réveiller la liaison radio ConBee II et forcer l’envoi d’un rapport.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Zigbee Interview Action */}
-                <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-3">
+              {/* ACTION: Reset & Re-join Connection */}
+              <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <RefreshCw className="h-4 w-4 text-emerald-400" />
+                      <RotateCcw className="h-4 w-4 text-rose-400" />
                       <h4 className="text-xs font-semibold text-slate-200">
-                        Relancer l'interview Zigbee
+                        Réinitialiser la connexion (Ré-inclusion)
                       </h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Réinterroge la table des endpoints, modèles et attributs pour restaurer la synchronisation avec le coordinateur.
+                      Purge le cache d’association du coordinateur ConBee II et ouvre immédiatement le réseau Zigbee à l'appairage.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={handleInterviewAction}
-                    disabled={isInterviewing}
-                    className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+                    onClick={handleResetAction}
+                    disabled={isResetting}
+                    className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isInterviewing ? 'animate-spin text-emerald-400' : ''}`} />
-                    <span>{isInterviewing ? 'Interview...' : 'Relancer l’interview'}</span>
+                    <RotateCcw className={`h-3.5 w-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+                    <span>{isResetting ? 'Réinitialisation...' : 'Réinitialiser & Ré-appairer'}</span>
                   </button>
                 </div>
 
-                {/* Manual Actions from Report (e.g. replace battery) */}
-                {report.recommendedActions
-                  .filter((a) => a.type === 'manual')
-                  .map((action) => (
-                    <div
-                      key={action.id}
-                      className="p-3.5 rounded-xl bg-slate-800/30 border border-slate-800 flex items-start space-x-3 text-xs"
-                    >
-                      <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
-                        <Battery className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-200">{action.label}</div>
-                        {action.instruction && (
-                          <p className="mt-0.5 text-slate-400 leading-relaxed">
-                            {action.instruction}
-                          </p>
-                        )}
-                      </div>
+                {/* Reset instruction guide shown when clicked or active */}
+                {(resetActive || permitJoinTimer > 0) && (
+                  <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start space-x-2.5">
+                    <HelpCircle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-amber-200">
+                      <span className="font-semibold">
+                        Appairage en cours ({permitJoinTimer}s restantes) :
+                      </span>
+                      <p className="mt-0.5 text-amber-300/90 leading-relaxed">
+                        Appuyez brièvement sur le bouton physique du capteur (1 impulsion) pour le reconnecter immédiatement au réseau.
+                      </p>
                     </div>
-                  ))}
+                  </div>
+                )}
               </div>
+
+              {/* ACTION: Reconfigure Device */}
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Sliders className="h-4 w-4 text-amber-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      Reconfigurer les liaisons radio (Configure)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Force l’équipement à recalculer ses liaisons (bindings) et à réémettre ses rapports d’état réguliers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConfigureAction}
+                  disabled={isConfiguring}
+                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+                >
+                  <Sliders className={`h-3.5 w-3.5 ${isConfiguring ? 'animate-spin text-amber-400' : ''}`} />
+                  <span>{isConfiguring ? 'Configuration...' : 'Reconfigurer'}</span>
+                </button>
+              </div>
+
+              {/* ACTION: Ping Device */}
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Activity className="h-4 w-4 text-cyan-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      Envoyer un Ping forcé
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {isRouter
+                      ? 'Envoie une trame directe pour vérifier la présence radio du routeur.'
+                      : 'Envoie un ping radio (recommandé si l’appareil est réveillé).'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handlePingAction}
+                  disabled={isPinging}
+                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+                >
+                  <Activity className={`h-3.5 w-3.5 ${isPinging ? 'animate-spin' : ''}`} />
+                  <span>{isPinging ? 'Ping en cours...' : 'Tester le Ping'}</span>
+                </button>
+              </div>
+
+              {/* ACTION: Zigbee Interview */}
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <RotateCw className="h-4 w-4 text-emerald-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      Relancer l'interview Zigbee
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Réinterroge tous les clusters et endpoints pour reconstruire la fiche technique de l’équipement.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleInterviewAction}
+                  disabled={isInterviewing}
+                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+                >
+                  <RotateCw className={`h-3.5 w-3.5 ${isInterviewing ? 'animate-spin text-emerald-400' : ''}`} />
+                  <span>{isInterviewing ? 'Interview...' : 'Relancer l’interview'}</span>
+                </button>
+              </div>
+
+              {/* ACTION: Permit Join standalone button */}
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <Radio className="h-4 w-4 text-indigo-400" />
+                      <h4 className="text-xs font-semibold text-slate-200">
+                        Ouvrir l'appairage Zigbee (2 min)
+                      </h4>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Autorise le rattachement de nouveaux capteurs ou la ré-association d'un capteur endormi.
+                    </p>
+                  </div>
+                  <div>
+                    {permitJoinTimer > 0 ? (
+                      <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-950/70 border border-amber-500/40 text-amber-300 text-xs font-semibold animate-pulse">
+                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                        <span>{`Appairage actif : ${permitJoinTimer}s`}</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handlePermitJoinAction}
+                        disabled={isJoining}
+                        className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <Radio className={`h-3.5 w-3.5 ${isJoining ? 'animate-spin' : ''}`} />
+                        <span>Ouvrir l'appairage</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Wake-up instruction */}
+                {!isRouter && (
+                  <div className="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 flex items-start space-x-2.5">
+                    <HelpCircle className="h-4 w-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-indigo-200">
+                      <span className="font-semibold">Instruction de réveil physique :</span>
+                      <p className="mt-0.5 text-indigo-300/90 leading-relaxed">
+                        Appuyez brièvement sur le bouton physique du capteur pour réveiller la liaison radio ConBee II et forcer l’envoi d’un rapport.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ACTION: Restart Zigbee2MQTT Service */}
+              <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Power className="h-4 w-4 text-indigo-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      Redémarrer le pont Zigbee2MQTT
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Réinitialise le port USB ConBee II et relance le service Zigbee2MQTT en cas de blocage radio persistant.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRestartBridgeAction}
+                  disabled={isRestartingBridge}
+                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+                >
+                  <Power className={`h-3.5 w-3.5 ${isRestartingBridge ? 'animate-spin text-indigo-400' : ''}`} />
+                  <span>{isRestartingBridge ? 'Redémarrage...' : 'Redémarrer Zigbee'}</span>
+                </button>
+              </div>
+
+              {/* Contextual Manual Actions from Report (if present) */}
+              {report?.recommendedActions
+                ?.filter((a) => a.type === 'manual')
+                ?.map((action) => (
+                  <div
+                    key={action.id}
+                    className="p-3.5 rounded-xl bg-slate-800/30 border border-slate-800 flex items-start space-x-3 text-xs"
+                  >
+                    <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
+                      <Battery className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-200">{action.label}</div>
+                      {action.instruction && (
+                        <p className="mt-0.5 text-slate-400 leading-relaxed">
+                          {action.instruction}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}

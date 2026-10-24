@@ -26,7 +26,14 @@ export type DiagnosticLikelyCause =
   | 'desynchronized'
   | 'healthy';
 
-export type DiagnosticActionType = 'ping' | 'permit_join' | 'interview' | 'manual';
+export type DiagnosticActionType =
+  | 'ping'
+  | 'permit_join'
+  | 'interview'
+  | 'configure'
+  | 'reset'
+  | 'restart_bridge'
+  | 'manual';
 
 export interface DiagnosticAction {
   id: string;

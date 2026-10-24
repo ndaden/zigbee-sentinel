@@ -55,12 +55,25 @@ export function detectSteepBatteryDrop(
   return false;
 }
 
-export function formatLastSeen(lastSeen: number | null | undefined): string {
-  if (lastSeen === null || lastSeen === undefined || lastSeen <= 0) {
+export function formatLastSeen(lastSeen: number | string | null | undefined): string {
+  if (lastSeen === null || lastSeen === undefined) {
     return 'Jamais vu';
   }
 
-  const diffMs = Math.max(0, Date.now() - lastSeen);
+  let numericTime: number;
+  if (typeof lastSeen === 'string') {
+    const parsed = Date.parse(lastSeen);
+    if (isNaN(parsed) || parsed <= 0) return 'Jamais vu';
+    numericTime = parsed;
+  } else {
+    numericTime = lastSeen;
+  }
+
+  if (numericTime <= 0) {
+    return 'Jamais vu';
+  }
+
+  const diffMs = Math.max(0, Date.now() - numericTime);
   const diffSec = Math.floor(diffMs / 1000);
 
   if (diffSec < 60) {

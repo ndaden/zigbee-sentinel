@@ -26,6 +26,9 @@ export const App: React.FC = () => {
     permitJoinTimer,
     triggerPing,
     triggerInterview,
+    triggerConfigure,
+    triggerReset,
+    triggerRestartBridge,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,
@@ -113,6 +116,59 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleConfigure = async (device: ZigbeeDevice): Promise<boolean> => {
+    try {
+      const success = await triggerConfigure(device.ieee_address);
+      if (success) {
+        showNotification(
+          `Reconfiguration réussie pour ${device.friendly_name}. Les liaisons radio ont été restaurées.`,
+          'success'
+        );
+      } else {
+        showNotification(`Échec de la reconfiguration pour ${device.friendly_name}`, 'error');
+      }
+      return success;
+    } catch {
+      showNotification(`Erreur lors de la reconfiguration de ${device.friendly_name}`, 'error');
+      return false;
+    }
+  };
+
+  const handleReset = async (device: ZigbeeDevice): Promise<boolean> => {
+    try {
+      const success = await triggerReset(device.ieee_address, 120);
+      if (success) {
+        showNotification(
+          `Connexion de ${device.friendly_name} réinitialisée. Réseau Zigbee ouvert (120s) pour appairage.`,
+          'success'
+        );
+      } else {
+        showNotification(`Échec de la réinitialisation pour ${device.friendly_name}`, 'error');
+      }
+      return success;
+    } catch {
+      showNotification(`Erreur lors de la réinitialisation de ${device.friendly_name}`, 'error');
+      return false;
+    }
+  };
+
+  const handleRestartBridge = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      showNotification('Envoi de la commande de redémarrage à Zigbee2MQTT...', 'info');
+      const res = await triggerRestartBridge();
+      if (res.success) {
+        showNotification(res.message, 'success');
+      } else {
+        showNotification(res.message, 'error');
+      }
+      return res;
+    } catch (err: any) {
+      const msg = err?.message || 'Erreur lors du redémarrage de Zigbee2MQTT';
+      showNotification(msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
+
   const handlePermitJoin = async (seconds: number = 120): Promise<boolean> => {
     const success = await triggerPermitJoin(seconds);
     if (success) {
@@ -171,6 +227,7 @@ export const App: React.FC = () => {
         devices={devices}
         permitJoinTimer={permitJoinTimer}
         onTriggerPermitJoin={handlePermitJoin}
+        onTriggerRestartBridge={handleRestartBridge}
       />
 
       {/* Main Content */}
@@ -203,6 +260,9 @@ export const App: React.FC = () => {
             onClose={() => setSelectedDiagnosticDevice(null)}
             onPing={handlePing}
             onInterview={handleInterview}
+            onConfigure={handleConfigure}
+            onReset={handleReset}
+            onRestartBridge={handleRestartBridge}
             onPermitJoin={handlePermitJoin}
             permitJoinTimer={permitJoinTimer}
             runDiagnostic={runDiagnostic}

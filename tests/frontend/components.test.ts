@@ -309,4 +309,26 @@ describe('deviceUtils', () => {
       expect(getLikelyCauseLabel('other')).toBe('Anomalie détectée');
     });
   });
+
+  describe('Header component', () => {
+    it('renders Header with Redémarrer Zigbee button when onTriggerRestartBridge is passed', async () => {
+      const { renderToString } = await import('react-dom/server');
+      const React = await import('react');
+      const { Header } = await import('../../src/components/Header');
+
+      const html = renderToString(
+        React.createElement(Header, {
+          bridgeStatus: { mqttConnected: true, bridge: 'online' },
+          devices: [],
+          permitJoinTimer: 0,
+          onTriggerPermitJoin: async () => true,
+          onTriggerRestartBridge: async () => ({ success: true, message: 'OK' }),
+        })
+      );
+
+      expect(html).toContain('Redémarrer Zigbee');
+      expect(html).toContain('Permit Join (120s)');
+      expect(html).toContain('Zigbee Sentinel');
+    });
+  });
 });

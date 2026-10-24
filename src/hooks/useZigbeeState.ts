@@ -53,6 +53,9 @@ export interface UseZigbeeStateReturn {
   permitJoinTimer: number;
   triggerPing: (ieee: string) => Promise<boolean>;
   triggerInterview: (ieee: string) => Promise<boolean>;
+  triggerConfigure: (ieee: string) => Promise<boolean>;
+  triggerReset: (ieee: string, permitJoinTime?: number) => Promise<boolean>;
+  triggerRestartBridge: () => Promise<{ success: boolean; message: string }>;
   triggerPermitJoin: (seconds?: number) => Promise<boolean>;
   runDiagnostic: (ieee: string) => Promise<DiagnosticReport>;
   fetchHistory: (ieee: string, limit?: number) => Promise<DeviceHistoryResponse>;
@@ -247,6 +250,48 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     }
   }, []);
 
+  const triggerConfigure = useCallback(async (ieee: string): Promise<boolean> => {
+    try {
+      const res = await apiClient.configureDevice(ieee);
+      return res.success;
+    } catch (err) {
+      console.error(`[useZigbeeState] Configure failed for ${ieee}:`, err);
+      return false;
+    }
+  }, []);
+
+  const triggerReset = useCallback(
+    async (ieee: string, permitJoinTime: number = 120): Promise<boolean> => {
+      try {
+        const res = await apiClient.resetDevice(ieee, permitJoinTime);
+        if (res.success) {
+          setPermitJoinTimer(permitJoinTime);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.error(`[useZigbeeState] Reset failed for ${ieee}:`, err);
+        return false;
+      }
+    },
+    []
+  );
+
+  const triggerRestartBridge = useCallback(async (): Promise<{
+    success: boolean;
+    message: string;
+  }> => {
+    try {
+      return await apiClient.restartBridge();
+    } catch (err: any) {
+      console.error('[useZigbeeState] Bridge restart failed:', err);
+      return {
+        success: false,
+        message: err.message || 'Erreur lors du redémarrage du pont Zigbee2MQTT',
+      };
+    }
+  }, []);
+
   const runDiagnostic = useCallback(async (ieee: string): Promise<DiagnosticReport> => {
     return apiClient.runDiagnostic(ieee);
   }, []);
@@ -265,6 +310,9 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     permitJoinTimer,
     triggerPing,
     triggerInterview,
+    triggerConfigure,
+    triggerReset,
+    triggerRestartBridge,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,

@@ -226,6 +226,20 @@ describe('DiagnosticModal component', () => {
     expect(html).toContain('Le périphérique communique de nouveau sur le maillage Zigbee');
     expect(html).toContain('Terminer le diagnostic');
   });
+
+  it('renders all repair actions (reset, reconfigure, restart bridge) even without initialReport', () => {
+    const html = renderToString(
+      React.createElement(DiagnosticModal, {
+        device: batteryDevice,
+        onClose: vi.fn(),
+      })
+    );
+
+    expect(html).toContain('2. Actions de Réparation &amp; Dépannage');
+    expect(html).toContain('Réinitialiser la connexion (Ré-inclusion)');
+    expect(html).toContain('Reconfigurer les liaisons radio (Configure)');
+    expect(html).toContain('Redémarrer le pont Zigbee2MQTT');
+  });
 });
 
 describe('HistoryModal component', () => {

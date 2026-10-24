@@ -165,6 +165,62 @@ describe('Fastify REST API & WebSocket Server', () => {
       expect(body.time).toBe(60);
     });
 
+    it('POST /api/devices/:ieee/diagnose should succeed with empty JSON body without 400 error', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/devices/0x111/diagnose',
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(res.statusCode).toBe(200);
+      const report = JSON.parse(res.payload);
+      expect(report.verdict).toBeDefined();
+    });
+
+    it('GET /api/devices/:ieee/diagnose should also return diagnostic report', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/devices/0x111/diagnose',
+      });
+      expect(res.statusCode).toBe(200);
+      const report = JSON.parse(res.payload);
+      expect(report.verdict).toBeDefined();
+    });
+
+    it('POST /api/devices/:ieee/configure should trigger device reconfiguration', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/devices/0x111/configure',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.ieee).toBe('0x111');
+      expect(body.friendly_name).toBe('Lampe Bureau');
+    });
+
+    it('POST /api/devices/:ieee/reset should remove and permit join', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/devices/0x111/reset',
+        payload: { permitJoinTime: 120 },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.permitJoinTime).toBe(120);
+    });
+
+    it('POST /api/bridge/restart should trigger Zigbee2MQTT restart', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/bridge/restart',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.message).toBeDefined();
+    });
+
     it('GET /api/status should return bridge, coordinator, and MQTT connection status', async () => {
       const res = await app.inject({
         method: 'GET',
