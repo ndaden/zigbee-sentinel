@@ -6,6 +6,7 @@ import type {
   ZigbeeDevice,
   EventRecord,
   DiagnosticLogRecord,
+  PendingRestoration,
 } from '../types.js';
 
 export class DatabaseService {
@@ -32,6 +33,12 @@ export class DatabaseService {
   private purgeBatteryStmt: Database.Statement;
   private purgeEventsStmt: Database.Statement;
   private purgeDiagStmt: Database.Statement;
+
+  private insertRestorationStmt: Database.Statement;
+  private getRestorationStmt: Database.Statement;
+  private completeRestorationStmt: Database.Statement;
+  private cancelRestorationStmt: Database.Statement;
+  private cleanExpiredRestorationsStmt: Database.Statement;
 
   constructor(dbPath: string = process.env.DATABASE_PATH || './data/zigbee_sentinel.db') {
     if (dbPath !== ':memory:') {
@@ -141,6 +148,28 @@ export class DatabaseService {
     this.purgeBatteryStmt = this.db.prepare('DELETE FROM history_battery WHERE recorded_at < ?');
     this.purgeEventsStmt = this.db.prepare('DELETE FROM history_events WHERE recorded_at < ?');
     this.purgeDiagStmt = this.db.prepare('DELETE FROM diagnostic_logs WHERE recorded_at < ?');
+
+    this.insertRestorationStmt = this.db.prepare(`
+      INSERT OR REPLACE INTO pending_restorations (
+        ieee_address, previous_friendly_name, custom_name, created_at, expires_at, status
+      ) VALUES (?, ?, ?, ?, ?, 'pending')
+    `);
+
+    this.getRestorationStmt = this.db.prepare(`
+      SELECT * FROM pending_restorations WHERE ieee_address = ?
+    `);
+
+    this.completeRestorationStmt = this.db.prepare(`
+      UPDATE pending_restorations SET status = 'restored' WHERE ieee_address = ?
+    `);
+
+    this.cancelRestorationStmt = this.db.prepare(`
+      UPDATE pending_restorations SET status = 'expired' WHERE ieee_address = ?
+    `);
+
+    this.cleanExpiredRestorationsStmt = this.db.prepare(`
+      DELETE FROM pending_restorations WHERE status != 'pending' OR expires_at < ?
+    `);
   }
 
   upsertDevice(device: Partial<ZigbeeDevice> & { ieee_address: string }): void {
@@ -258,6 +287,40 @@ export class DatabaseService {
       return this.getDiagnosticLogsByDeviceStmt.all(ieee_address, limit) as DiagnosticLogRecord[];
     }
     return this.getDiagnosticLogsStmt.all(limit) as DiagnosticLogRecord[];
+  }
+
+  savePendingRestoration(
+    ieee_address: string,
+    previous_friendly_name: string,
+    custom_name: string | null = null,
+    ttlSeconds: number = 600
+  ): void {
+    const now = Date.now();
+    const expires_at = now + ttlSeconds * 1000;
+    this.insertRestorationStmt.run(
+      ieee_address,
+      previous_friendly_name,
+      custom_name,
+      now,
+      expires_at
+    );
+  }
+
+  getPendingRestoration(ieee_address: string): PendingRestoration | null {
+    const row = this.getRestorationStmt.get(ieee_address) as PendingRestoration | undefined;
+    return row ?? null;
+  }
+
+  completePendingRestoration(ieee_address: string): void {
+    this.completeRestorationStmt.run(ieee_address);
+  }
+
+  cancelPendingRestoration(ieee_address: string): void {
+    this.cancelRestorationStmt.run(ieee_address);
+  }
+
+  cleanExpiredRestorations(): void {
+    this.cleanExpiredRestorationsStmt.run(Date.now());
   }
 
   purgeOldRecords(retentionDays: number = 60): void {

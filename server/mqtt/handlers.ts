@@ -4,6 +4,7 @@ import type { ZigbeeDevice, DeviceStatus } from '../types.js';
 
 export type MqttNotificationType =
   | 'device_updated'
+  | 'device_restored'
   | 'bridge_status'
   | 'bridge_devices'
   | 'diagnostic_response';
@@ -21,6 +22,7 @@ export class MqttHandler extends EventEmitter {
   private notificationListeners: Set<MqttListener> = new Set();
   private bridgeState: string = 'offline';
   private bridgeInfo: any = null;
+  private renameCallback?: (from: string, to: string) => Promise<boolean>;
 
   constructor(
     db: DatabaseService,
@@ -33,6 +35,10 @@ export class MqttHandler extends EventEmitter {
     if (onUpdate) {
       this.setListener(onUpdate);
     }
+  }
+
+  setRenameCallback(callback: (from: string, to: string) => Promise<boolean>): void {
+    this.renameCallback = callback;
   }
 
   setListener(listener: MqttListener): void {
@@ -82,6 +88,8 @@ export class MqttHandler extends EventEmitter {
 
     if (relativeTopic === 'bridge/devices') {
       this.handleBridgeDevices(message);
+    } else if (relativeTopic === 'bridge/event') {
+      this.handleBridgeEvent(message);
     } else if (relativeTopic === 'bridge/state') {
       this.handleBridgeState(message);
     } else if (relativeTopic === 'bridge/info') {
@@ -116,6 +124,8 @@ export class MqttHandler extends EventEmitter {
         }
 
         const existing = this.db.getDevice(ieee);
+
+        this.checkAndRestoreDevice(ieee, dev.friendly_name || ieee);
 
         this.db.upsertDevice({
           ieee_address: ieee,
@@ -256,6 +266,8 @@ export class MqttHandler extends EventEmitter {
       const dev = this.findDevice(relativeTopic);
       if (!dev) return;
 
+      this.checkAndRestoreDevice(dev.ieee_address, dev.friendly_name);
+
       const now = Date.now();
       const updates: Partial<ZigbeeDevice> & { ieee_address: string } = {
         ieee_address: dev.ieee_address,
@@ -290,6 +302,66 @@ export class MqttHandler extends EventEmitter {
       }
     } catch {
       // Not JSON, ignore
+    }
+  }
+
+  private handleBridgeEvent(message: Buffer): void {
+    try {
+      const event = JSON.parse(message.toString('utf-8'));
+      if (!event || !event.type) return;
+
+      const data = event.data || {};
+      const ieee =
+        data.ieee_address ||
+        (typeof data.id === 'string' && data.id.startsWith('0x') ? data.id : null);
+      if (ieee) {
+        this.checkAndRestoreDevice(ieee, data.friendly_name || ieee);
+      }
+    } catch (err) {
+      console.error('Failed to parse bridge/event message:', err);
+    }
+  }
+
+  private async checkAndRestoreDevice(ieee: string, currentFriendlyName: string): Promise<void> {
+    const restoration = this.db.getPendingRestoration(ieee);
+    if (!restoration || restoration.status !== 'pending') return;
+
+    if (restoration.expires_at < Date.now()) {
+      this.db.cleanExpiredRestorations();
+      return;
+    }
+
+    // 1. If friendly_name is different from previous_friendly_name, rename in Zigbee2MQTT
+    if (currentFriendlyName !== restoration.previous_friendly_name && this.renameCallback) {
+      try {
+        await this.renameCallback(ieee, restoration.previous_friendly_name);
+      } catch (err) {
+        console.error(`Failed to rename restored device ${ieee}:`, err);
+      }
+    }
+
+    // 2. Update friendly_name and restore custom_name in SQLite
+    this.db.upsertDevice({
+      ieee_address: ieee,
+      friendly_name: restoration.previous_friendly_name,
+      custom_name: restoration.custom_name,
+      status: 'online',
+    });
+
+    // 3. Mark restoration as completed
+    this.db.completePendingRestoration(ieee);
+
+    const updated = this.db.getDevice(ieee);
+    if (updated) {
+      this.notify({ type: 'device_updated', data: updated });
+      this.notify({
+        type: 'device_restored',
+        data: {
+          ieee_address: ieee,
+          friendly_name: restoration.previous_friendly_name,
+          custom_name: restoration.custom_name,
+        },
+      });
     }
   }
 }

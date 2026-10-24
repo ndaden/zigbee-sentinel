@@ -272,12 +272,52 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       }
 
       const permitJoinTime = req.body?.permitJoinTime ?? 120;
+
+      // Save pending restoration to guarantee full identity and Jeedom scenarios preservation upon re-joining
+      db.savePendingRestoration(
+        device.ieee_address,
+        device.friendly_name,
+        device.custom_name,
+        Math.max(600, permitJoinTime + 600)
+      );
+
       const success = await mqttService.resetDevice(device.friendly_name, permitJoinTime);
+
+      wsManager.broadcast({
+        type: 'device_repairing_started',
+        data: {
+          ieee: device.ieee_address,
+          friendly_name: device.friendly_name,
+          custom_name: device.custom_name,
+          permitJoinTime,
+        },
+      });
+
       return reply.status(200).send({
         success,
         ieee: device.ieee_address,
         friendly_name: device.friendly_name,
+        custom_name: device.custom_name,
         permitJoinTime,
+        preservation: true,
+      });
+    }
+  );
+
+  app.post<{ Params: { ieee: string } }>(
+    '/api/devices/:ieee/cancel-repair',
+    async (req, reply) => {
+      const { ieee } = req.params;
+      const device = db.getDevice(ieee) || db.getDeviceByFriendlyName(ieee);
+
+      if (!device) {
+        return reply.status(404).send({ error: `Device '${ieee}' not found` });
+      }
+
+      db.cancelPendingRestoration(device.ieee_address);
+      return reply.status(200).send({
+        success: true,
+        ieee: device.ieee_address,
       });
     }
   );

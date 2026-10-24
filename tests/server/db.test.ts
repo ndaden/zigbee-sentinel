@@ -151,4 +151,54 @@ describe('DatabaseService', () => {
     expect(diagLogs.length).toBe(1);
     expect(diagLogs[0].status).toBe('success');
   });
+
+  describe('pending restorations', () => {
+    it('should save and retrieve pending restorations', () => {
+      const ieee = '0x00158d0001a2b3c4';
+      db.savePendingRestoration(ieee, 'Capteur Salon', '[Salon] Capteur Temp', 300);
+
+      const res = db.getPendingRestoration(ieee);
+      expect(res).not.toBeNull();
+      expect(res?.ieee_address).toBe(ieee);
+      expect(res?.previous_friendly_name).toBe('Capteur Salon');
+      expect(res?.custom_name).toBe('[Salon] Capteur Temp');
+      expect(res?.status).toBe('pending');
+      expect(res?.expires_at).toBeGreaterThan(Date.now());
+    });
+
+    it('should complete pending restoration', () => {
+      const ieee = '0x00158d0001a2b3c4';
+      db.savePendingRestoration(ieee, 'Capteur Salon', '[Salon] Capteur Temp', 300);
+      db.completePendingRestoration(ieee);
+
+      const res = db.getPendingRestoration(ieee);
+      expect(res?.status).toBe('restored');
+    });
+
+    it('should cancel pending restoration', () => {
+      const ieee = '0x00158d0001a2b3c4';
+      db.savePendingRestoration(ieee, 'Capteur Salon', '[Salon] Capteur Temp', 300);
+      db.cancelPendingRestoration(ieee);
+
+      const res = db.getPendingRestoration(ieee);
+      expect(res?.status).toBe('expired');
+    });
+
+    it('should clean expired or completed restorations', () => {
+      const ieee1 = '0x001';
+      const ieee2 = '0x002';
+      const ieee3 = '0x003';
+
+      db.savePendingRestoration(ieee1, 'Dev 1', null, 600); // active pending
+      db.savePendingRestoration(ieee2, 'Dev 2', null, 600); // completed
+      db.completePendingRestoration(ieee2);
+      db.savePendingRestoration(ieee3, 'Dev 3', null, -10); // already expired
+
+      db.cleanExpiredRestorations();
+
+      expect(db.getPendingRestoration(ieee1)).not.toBeNull();
+      expect(db.getPendingRestoration(ieee2)).toBeNull();
+      expect(db.getPendingRestoration(ieee3)).toBeNull();
+    });
+  });
 });

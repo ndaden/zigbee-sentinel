@@ -197,6 +197,49 @@ describe('MqttHandler', () => {
     expect(logs[0].action_type).toBe('ping');
     expect(logs[0].status).toBe('success');
   });
+
+  it('should automatically restore identity and rename device on bridge/event device_joined', async () => {
+    const mockRename = vi.fn().mockResolvedValue(true);
+    handler.setRenameCallback(mockRename);
+
+    const ieee = '0x00158d0001a2b3c4';
+    db.savePendingRestoration(ieee, 'Capteur Porte Entree', '[Entrée] Porte Principale', 300);
+
+    const notifications: any[] = [];
+    handler.setListener((n) => notifications.push(n));
+
+    // Simulate device joining with raw IEEE address as friendly_name
+    handler.handleMessage(
+      'zigbee2mqtt/bridge/event',
+      Buffer.from(
+        JSON.stringify({
+          type: 'device_joined',
+          data: {
+            ieee_address: ieee,
+            friendly_name: ieee,
+          },
+        })
+      )
+    );
+
+    // Wait microtask
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockRename).toHaveBeenCalledWith(ieee, 'Capteur Porte Entree');
+
+    const dev = db.getDevice(ieee);
+    expect(dev?.friendly_name).toBe('Capteur Porte Entree');
+    expect(dev?.custom_name).toBe('[Entrée] Porte Principale');
+    expect(dev?.status).toBe('online');
+
+    const restoration = db.getPendingRestoration(ieee);
+    expect(restoration?.status).toBe('restored');
+
+    const restoredNotif = notifications.find((n) => n.type === 'device_restored');
+    expect(restoredNotif).toBeDefined();
+    expect(restoredNotif.data.friendly_name).toBe('Capteur Porte Entree');
+    expect(restoredNotif.data.custom_name).toBe('[Entrée] Porte Principale');
+  });
 });
 
 describe('MqttService and runMqttMock', () => {
@@ -293,5 +336,11 @@ describe('MqttService and runMqttMock', () => {
 
     expect(authService.getUsername()).toBe('custom_user');
     expect(authService.getPassword()).toBe('pass:word:with:colons');
+  });
+
+  it('should execute renameDevice and receive mock response', async () => {
+    runMqttMock(service, db);
+    const result = await service.renameDevice('0x00158d0001aaaa04', 'Capteur Porte Renomme');
+    expect(result).toBe(true);
   });
 });

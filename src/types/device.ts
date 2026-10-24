@@ -16,6 +16,7 @@ export interface ZigbeeDevice {
   last_seen?: number | null;
   created_at?: number;
   updated_at?: number;
+  is_repairing?: boolean;
 }
 
 export type DiagnosticSeverity = 'critical' | 'warning' | 'info';
@@ -100,4 +101,10 @@ export interface ActionResult {
   friendly_name?: string;
   time?: number;
   error?: string;
+}
+
+export interface DeviceRestoredEvent {
+  ieee_address: string;
+  friendly_name: string;
+  custom_name?: string | null;
 }

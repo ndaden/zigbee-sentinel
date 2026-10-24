@@ -177,6 +177,13 @@ export function runMqttMock(
           `${baseTopic}/bridge/response/device/remove`,
           Buffer.from(JSON.stringify({ data: { id, block: false, force: true }, status: 'ok' }))
         );
+      } else if (topic === `${baseTopic}/bridge/request/device/rename`) {
+        const from = payload.from;
+        const to = payload.to;
+        mqttService.handleMessage(
+          `${baseTopic}/bridge/response/device/rename`,
+          Buffer.from(JSON.stringify({ data: { from, to }, status: 'ok' }))
+        );
       } else if (topic === `${baseTopic}/bridge/request/restart`) {
         mqttService.handleMessage(
           `${baseTopic}/bridge/response/restart`,

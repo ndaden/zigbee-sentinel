@@ -144,6 +144,31 @@ export function useZigbeeState(): UseZigbeeStateReturn {
                 }
                 break;
               }
+              case 'device_repairing_started': {
+                if (message.data && message.data.ieee) {
+                  setDevices((prev) =>
+                    reduceDeviceUpdate(prev, {
+                      ieee_address: message.data.ieee,
+                      is_repairing: true,
+                    })
+                  );
+                }
+                break;
+              }
+              case 'device_restored': {
+                if (message.data && message.data.ieee_address) {
+                  setDevices((prev) =>
+                    reduceDeviceUpdate(prev, {
+                      ieee_address: message.data.ieee_address,
+                      friendly_name: message.data.friendly_name,
+                      custom_name: message.data.custom_name,
+                      status: 'online',
+                      is_repairing: false,
+                    })
+                  );
+                }
+                break;
+              }
               case 'bridge_status': {
                 if (message.data) {
                   setBridgeStatus((prev) => ({

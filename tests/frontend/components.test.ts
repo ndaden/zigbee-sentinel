@@ -346,4 +346,26 @@ describe('deviceUtils', () => {
       expect(html).toContain('Zigbee Sentinel');
     });
   });
+
+  describe('DeviceCard component', () => {
+    it('renders animated badge Réappairage... when device.is_repairing is true', async () => {
+      const { renderToString } = await import('react-dom/server');
+      const React = await import('react');
+      const { DeviceCard } = await import('../../src/components/DeviceCard');
+
+      const html = renderToString(
+        React.createElement(DeviceCard, {
+          device: {
+            ieee_address: '0x00158d0001aaaa04',
+            friendly_name: 'Capteur Porte Entree',
+            type: 'EndDevice',
+            status: 'offline',
+            is_repairing: true,
+          },
+        })
+      );
+
+      expect(html).toContain('Réappairage...');
+    });
+  });
 });

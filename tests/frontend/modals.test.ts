@@ -251,7 +251,8 @@ describe('DiagnosticModal component', () => {
     );
 
     expect(html).toContain('2. Actions de Réparation &amp; Dépannage');
-    expect(html).toContain('Réinitialiser la connexion (Ré-inclusion)');
+    expect(html).toContain('Réinitialiser &amp; Réappairer (Garder identifiants Jeedom)');
+    expect(html).toContain('Préservation totale d&#x27;identité : zéro scénario ou commande Jeedom rompus.');
     expect(html).toContain('Reconfigurer les liaisons radio (Configure)');
     expect(html).toContain('Redémarrer le pont Zigbee2MQTT');
   });

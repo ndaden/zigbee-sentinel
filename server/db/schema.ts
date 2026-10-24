@@ -44,10 +44,20 @@ CREATE TABLE IF NOT EXISTS diagnostic_logs (
     FOREIGN KEY(ieee_address) REFERENCES devices(ieee_address) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS pending_restorations (
+    ieee_address TEXT PRIMARY KEY,
+    previous_friendly_name TEXT NOT NULL,
+    custom_name TEXT,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+);
+
 CREATE INDEX IF NOT EXISTS idx_devices_friendly_name ON devices(friendly_name);
 CREATE INDEX IF NOT EXISTS idx_history_battery_ieee ON history_battery(ieee_address, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_events_ieee ON history_events(ieee_address, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_diagnostic_logs_ieee ON diagnostic_logs(ieee_address, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pending_restorations_status ON pending_restorations(status, expires_at);
 `;
 
 export function initSchema(db: Database.Database): void {

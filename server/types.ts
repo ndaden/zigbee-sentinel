@@ -80,3 +80,12 @@ export interface DiagnosticLogRecord {
   details?: string | null;
   recorded_at: number;
 }
+
+export interface PendingRestoration {
+  ieee_address: string;
+  previous_friendly_name: string;
+  custom_name?: string | null;
+  created_at: number;
+  expires_at: number;
+  status: 'pending' | 'restored' | 'expired';
+}

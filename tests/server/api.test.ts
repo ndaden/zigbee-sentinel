@@ -198,7 +198,7 @@ describe('Fastify REST API & WebSocket Server', () => {
       expect(body.friendly_name).toBe('Lampe Bureau');
     });
 
-    it('POST /api/devices/:ieee/reset should remove and permit join', async () => {
+    it('POST /api/devices/:ieee/reset should remove, permit join, and save pending restoration for identity preservation', async () => {
       const res = await app.inject({
         method: 'POST',
         url: '/api/devices/0x111/reset',
@@ -208,6 +208,26 @@ describe('Fastify REST API & WebSocket Server', () => {
       const body = JSON.parse(res.payload);
       expect(body.success).toBe(true);
       expect(body.permitJoinTime).toBe(120);
+      expect(body.preservation).toBe(true);
+
+      const restoration = db.getPendingRestoration('0x111');
+      expect(restoration).not.toBeNull();
+      expect(restoration?.previous_friendly_name).toBe('Lampe Bureau');
+      expect(restoration?.status).toBe('pending');
+    });
+
+    it('POST /api/devices/:ieee/cancel-repair should cancel pending restoration', async () => {
+      db.savePendingRestoration('0x111', 'Lampe Bureau', null, 300);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/devices/0x111/cancel-repair',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+
+      const restoration = db.getPendingRestoration('0x111');
+      expect(restoration?.status).toBe('expired');
     });
 
     it('POST /api/bridge/restart should trigger Zigbee2MQTT restart', async () => {

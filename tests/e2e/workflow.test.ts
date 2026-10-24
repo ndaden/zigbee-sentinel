@@ -209,4 +209,58 @@ describe('E2E Diagnostic & Reconnect Workflow', () => {
     const apiError = JSON.parse(apiRes.payload);
     expect(apiError.error).toBe('Endpoint not found');
   });
+
+  it('Test 5: Full Smart Re-pair & Auto-Restoration Workflow (zero broken Jeedom scenarios)', async () => {
+    const doorSensorIeee = '0x00158d0001aaaa04';
+
+    // 1. Give device a custom Jeedom name
+    db.updateDeviceCustomName(doorSensorIeee, '[Entrée] Porte Principale');
+
+    // 2. Trigger smart reset / repair
+    const resetRes = await app.inject({
+      method: 'POST',
+      url: `/api/devices/${doorSensorIeee}/reset`,
+      payload: { permitJoinTime: 120 },
+    });
+    expect(resetRes.statusCode).toBe(200);
+    const resetData = JSON.parse(resetRes.payload);
+    expect(resetData.success).toBe(true);
+    expect(resetData.preservation).toBe(true);
+    expect(resetData.custom_name).toBe('[Entrée] Porte Principale');
+
+    // Verify pending restoration exists
+    const pending = db.getPendingRestoration(doorSensorIeee);
+    expect(pending).not.toBeNull();
+    expect(pending?.previous_friendly_name).toBe('Capteur Porte Entree');
+    expect(pending?.custom_name).toBe('[Entrée] Porte Principale');
+
+    // 3. Simulate device re-joining under its raw IEEE address (as Z2M does by default after wipe)
+    (app as any).mqttService.handleMessage(
+      'zigbee2mqtt/bridge/event',
+      Buffer.from(
+        JSON.stringify({
+          type: 'device_joined',
+          data: {
+            ieee_address: doorSensorIeee,
+            friendly_name: doorSensorIeee,
+          },
+        })
+      )
+    );
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    // 4. Verify identity was automatically restored:
+    // - friendly_name restored to 'Capteur Porte Entree'
+    // - custom_name restored to '[Entrée] Porte Principale'
+    // - status updated to 'online'
+    // - pending restoration marked 'restored'
+    const restoredDev = db.getDevice(doorSensorIeee);
+    expect(restoredDev?.friendly_name).toBe('Capteur Porte Entree');
+    expect(restoredDev?.custom_name).toBe('[Entrée] Porte Principale');
+    expect(restoredDev?.status).toBe('online');
+
+    const completedRestoration = db.getPendingRestoration(doorSensorIeee);
+    expect(completedRestoration?.status).toBe('restored');
+  });
 });

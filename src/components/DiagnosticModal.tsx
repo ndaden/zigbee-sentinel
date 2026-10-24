@@ -17,6 +17,7 @@ import {
   Sliders,
   Power,
   RotateCw,
+  ShieldCheck,
 } from 'lucide-react';
 import type { ZigbeeDevice, DiagnosticReport } from '../types/device';
 import { apiClient } from '../api/client';
@@ -250,7 +251,7 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
           action: 'reset',
           type: 'success',
           message:
-            'Cache purgé et réseau ouvert pour 120s. Appuyez sur le bouton physique du capteur.',
+            'Cache ConBee II purgé et réseau ouvert pour 120s. Préservation active : aucun scénario Jeedom ne sera cassé.',
         });
       }
     } catch {
@@ -603,12 +604,16 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
                     <div className="flex items-center space-x-2">
                       <RotateCcw className="h-4 w-4 text-rose-400" />
                       <h4 className="text-xs font-semibold text-slate-200">
-                        Réinitialiser la connexion (Ré-inclusion)
+                        Réinitialiser & Réappairer (Garder identifiants Jeedom)
                       </h4>
                     </div>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Purge le cache d’association du coordinateur ConBee II et ouvre immédiatement le réseau Zigbee à l'appairage.
+                      Purge le cache obsolète du coordinateur ConBee II et ouvre immédiatement le réseau. Sentinel restaurera automatiquement le nom Zigbee2MQTT et la pièce Jeedom au réappairage.
                     </p>
+                    <div className="flex items-center space-x-1.5 text-[11px] text-emerald-400 font-medium pt-0.5">
+                      <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span>Préservation totale d'identité : zéro scénario ou commande Jeedom rompus.</span>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -623,15 +628,23 @@ export const DiagnosticModal: React.FC<DiagnosticModalProps> = ({
 
                 {/* Reset instruction guide shown when clicked or active */}
                 {(resetActive || permitJoinTimer > 0) && (
-                  <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 flex items-start space-x-2.5">
-                    <HelpCircle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-amber-200">
-                      <span className="font-semibold">
-                        Appairage en cours ({permitJoinTimer}s restantes) :
-                      </span>
-                      <p className="mt-0.5 text-amber-300/90 leading-relaxed">
-                        Appuyez brièvement sur le bouton physique du capteur (1 impulsion) pour le reconnecter immédiatement au réseau.
-                      </p>
+                  <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/40 space-y-2">
+                    <div className="flex items-start space-x-2.5">
+                      <HelpCircle className="h-4 w-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-xs text-indigo-200 space-y-1">
+                        <div className="font-semibold text-indigo-100 flex items-center justify-between">
+                          <span>Appairage actif ({permitJoinTimer}s restantes) :</span>
+                          <span className="text-[10px] text-indigo-300 font-mono">Préservation active</span>
+                        </div>
+                        <p className="text-indigo-200/90 leading-relaxed">
+                          {isRouter
+                            ? 'Maintenez le bouton de la prise/ampoule enfoncé pendant 5 secondes (ou effectuez 5 cycles marche/arrêt) pour lancer l’association.'
+                            : 'Maintenez enfoncé le bouton de réinitialisation du capteur pendant 5 secondes jusqu’à ce que le voyant clignote pour réassocier le capteur.'}
+                        </p>
+                        <p className="text-[11px] text-emerald-300/90 font-medium pt-1">
+                          ✨ Dès détection du capteur, Sentinel réappliquera immédiatement l’identifiant <code className="bg-slate-900/80 px-1 py-0.5 rounded text-white">{device.friendly_name}</code> et la configuration Jeedom.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

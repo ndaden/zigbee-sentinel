@@ -61,6 +61,7 @@ export class MqttService extends EventEmitter {
     this.isMock = options.mock ?? process.env.MOCK_MQTT === 'true';
 
     this.handler = new MqttHandler(options.db, this.baseTopic, options.onNotification);
+    this.handler.setRenameCallback((from, to) => this.renameDevice(from, to));
 
     if (this.isMock) {
       this.connected = true;
@@ -381,6 +382,58 @@ export class MqttService extends EventEmitter {
     // 2. Open pairing network for permitJoinTime seconds so the sensor can re-join
     const permitJoinSuccess = await this.permitJoin(permitJoinTime);
     return permitJoinSuccess;
+  }
+
+  async renameDevice(
+    from: string,
+    to: string,
+    timeoutMs: number = 8000
+  ): Promise<boolean> {
+    const reqTopic = `${this.baseTopic}/bridge/request/device/rename`;
+    const resSubTopic = 'bridge/response/device/rename';
+
+    return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        this.handler.off('response', onResponse);
+      };
+
+      const onResponse = (event: { topic: string; payload: any }) => {
+        if (event.topic === resSubTopic) {
+          const fromId = event.payload?.data?.from;
+          const toId = event.payload?.data?.to;
+          if (this.matchesDeviceId(from, fromId) || toId === to) {
+            resolved = true;
+            cleanup();
+            resolve(event.payload?.status === 'ok');
+          }
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      }, timeoutMs);
+
+      this.handler.on('response', onResponse);
+
+      this.publish(
+        reqTopic,
+        JSON.stringify({ from, to, homeassistant_rename: true })
+      ).catch(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve(false);
+        }
+      });
+    });
   }
 
   async restartBridge(timeoutMs: number = 15000): Promise<boolean> {
