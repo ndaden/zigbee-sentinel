@@ -8,7 +8,11 @@ import { MqttService } from './mqtt/client.js';
 import { runMqttMock } from './mqtt/mock.js';
 import { DiagnosticEngine } from './diagnostic/engine.js';
 import { WebSocketManager } from './ws/server.js';
-import { fetchJeedomDevices, matchJeedomDeviceToZigbee } from './jeedom/client.js';
+import {
+  fetchJeedomDevices,
+  matchJeedomDeviceToZigbee,
+  evaluateJeedomDeviceStatus,
+} from './jeedom/client.js';
 
 export interface BuildAppOptions {
   db?: DatabaseService;
@@ -405,6 +409,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         const zigbeeDevices = db.getDevices();
 
         const synced: Array<{ ieee: string; previousName: string; newName: string }> = [];
+        const now = Date.now();
 
         for (const eq of jeedomDevices) {
           const match = matchJeedomDeviceToZigbee(eq, zigbeeDevices);
@@ -413,10 +418,30 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
             const newName = rawHumanName.trim();
             if (newName) {
               db.updateDeviceCustomName(match.ieee_address, newName);
-              const updated = db.getDevice(match.ieee_address);
-              if (updated) {
-                wsManager.broadcast({ type: 'device_updated', data: updated });
-              }
+            }
+
+            const currentDev = db.getDevice(match.ieee_address);
+            const evalStatus = evaluateJeedomDeviceStatus(
+              eq,
+              currentDev?.type,
+              currentDev?.power_source,
+              now
+            );
+            if (evalStatus) {
+              db.upsertDevice({
+                ieee_address: match.ieee_address,
+                status: evalStatus.status,
+                last_seen: evalStatus.lastSeen ?? currentDev?.last_seen,
+                updated_at: now,
+              });
+            }
+
+            const updated = db.getDevice(match.ieee_address);
+            if (updated) {
+              wsManager.broadcast({ type: 'device_updated', data: updated });
+            }
+
+            if (newName) {
               synced.push({
                 ieee: match.ieee_address,
                 previousName: match.friendly_name,
@@ -455,6 +480,89 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     });
   });
 
+  app.post('/api/network/probe', async (_req, reply) => {
+    let probedRouters = 0;
+    let onlineRouters = 0;
+    let jeedomSynced = 0;
+
+    // 1. Probe all mains routers via MQTT ping
+    if (mqttService) {
+      try {
+        const routerResult = await mqttService.probeAllRouters(3);
+        probedRouters = routerResult.total;
+        onlineRouters = routerResult.online;
+      } catch (err) {
+        console.error('[API] Router probe error:', err);
+      }
+    }
+
+    // 2. If Jeedom is configured, evaluate battery devices status via lastCommunication
+    const apiKey = process.env.JEEDOM_API_KEY || '';
+    const url = process.env.JEEDOM_URL || 'http://127.0.0.1';
+    if (apiKey.trim() !== '') {
+      try {
+        const jeedomDevices = await fetchJeedomDevices(url, apiKey);
+        const zigbeeDevices = db.getDevices();
+        const now = Date.now();
+
+        for (const eq of jeedomDevices) {
+          const match = matchJeedomDeviceToZigbee(eq, zigbeeDevices);
+          if (match) {
+            const dev = db.getDevice(match.ieee_address);
+            const evalStatus = evaluateJeedomDeviceStatus(
+              eq,
+              dev?.type,
+              dev?.power_source,
+              now
+            );
+            if (evalStatus) {
+              const previousStatus = dev?.status;
+              if (previousStatus !== evalStatus.status) {
+                if (evalStatus.status === 'online') {
+                  const lastEvents = db.getEventHistory(1, match.ieee_address);
+                  let durationOfflineMs: number | undefined;
+                  if (lastEvents.length > 0 && lastEvents[0].event_type === 'disconnected') {
+                    durationOfflineMs = Math.max(0, now - lastEvents[0].recorded_at);
+                  }
+                  db.recordEvent(match.ieee_address, 'connected', durationOfflineMs, now);
+                } else {
+                  db.recordEvent(match.ieee_address, 'disconnected', undefined, now);
+                }
+              }
+
+              db.upsertDevice({
+                ieee_address: match.ieee_address,
+                status: evalStatus.status,
+                last_seen: evalStatus.lastSeen ?? dev?.last_seen,
+                updated_at: now,
+              });
+
+              const updated = db.getDevice(match.ieee_address);
+              if (updated) {
+                wsManager.broadcast({ type: 'device_updated', data: updated });
+              }
+              jeedomSynced++;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[API] Jeedom status sync error during probe:', err);
+      }
+    }
+
+    const allDevices = db.getDevices();
+    const onlineDevices = allDevices.filter((d) => d.status === 'online').length;
+
+    return reply.status(200).send({
+      success: true,
+      probedRouters,
+      onlineRouters,
+      jeedomSynced,
+      totalDevices: allDevices.length,
+      onlineDevices,
+    });
+  });
+
   app.post<{ Body?: { resyncFromZ2m?: boolean } }>(
     '/api/database/clear',
     async (req, reply) => {
@@ -466,6 +574,42 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
       if (resyncFromZ2m && mqttService) {
         mqttService.resyncDevices();
+
+        // Also trigger Jeedom status sync if configured
+        const apiKey = process.env.JEEDOM_API_KEY || '';
+        const url = process.env.JEEDOM_URL || 'http://127.0.0.1';
+        if (apiKey.trim() !== '') {
+          fetchJeedomDevices(url, apiKey)
+            .then((jeedomDevices) => {
+              const zigbeeDevices = db.getDevices();
+              const now = Date.now();
+              for (const eq of jeedomDevices) {
+                const match = matchJeedomDeviceToZigbee(eq, zigbeeDevices);
+                if (match) {
+                  const dev = db.getDevice(match.ieee_address);
+                  const evalStatus = evaluateJeedomDeviceStatus(
+                    eq,
+                    dev?.type,
+                    dev?.power_source,
+                    now
+                  );
+                  if (evalStatus) {
+                    db.upsertDevice({
+                      ieee_address: match.ieee_address,
+                      status: evalStatus.status,
+                      last_seen: evalStatus.lastSeen ?? dev?.last_seen,
+                      updated_at: now,
+                    });
+                    const updated = db.getDevice(match.ieee_address);
+                    if (updated) {
+                      wsManager.broadcast({ type: 'device_updated', data: updated });
+                    }
+                  }
+                }
+              }
+            })
+            .catch(() => {});
+        }
       }
 
       return reply.status(200).send({

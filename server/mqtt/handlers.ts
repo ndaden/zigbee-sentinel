@@ -23,6 +23,7 @@ export class MqttHandler extends EventEmitter {
   private bridgeState: string = 'offline';
   private bridgeInfo: any = null;
   private renameCallback?: (from: string, to: string) => Promise<boolean>;
+  private availabilityCache: Map<string, { status: DeviceStatus; timestamp: number }> = new Map();
 
   constructor(
     db: DatabaseService,
@@ -108,12 +109,15 @@ export class MqttHandler extends EventEmitter {
       const rawDevices = JSON.parse(message.toString('utf-8'));
       if (!Array.isArray(rawDevices)) return;
 
+      const now = Date.now();
+
       for (const dev of rawDevices) {
         if (!dev || dev.type === 'Coordinator') continue;
 
         const ieee = dev.ieee_address;
         if (!ieee) continue;
 
+        const friendlyName = dev.friendly_name || ieee;
         const vendor = dev.definition?.vendor || dev.vendor || null;
         const model = dev.definition?.model || dev.model_id || dev.model || null;
 
@@ -123,18 +127,61 @@ export class MqttHandler extends EventEmitter {
           else if (dev.type === 'EndDevice') powerSource = 'Battery';
         }
 
+        const isRouter = dev.type === 'Router' || powerSource === 'Mains';
+
+        // Parse dev.last_seen if provided by Z2M
+        let lastSeenMs: number | null = null;
+        if (dev.last_seen) {
+          if (typeof dev.last_seen === 'number') {
+            lastSeenMs = dev.last_seen;
+          } else if (typeof dev.last_seen === 'string') {
+            const parsed = new Date(dev.last_seen).getTime();
+            if (!isNaN(parsed) && parsed > 0) {
+              lastSeenMs = parsed;
+            }
+          }
+        }
+
         const existing = this.db.getDevice(ieee);
 
-        this.checkAndRestoreDevice(ieee, dev.friendly_name || ieee);
+        this.checkAndRestoreDevice(ieee, friendlyName);
+
+        // Determine real status:
+        // 1. Cached availability topic
+        const cachedAvail =
+          this.availabilityCache.get(friendlyName.toLowerCase()) ||
+          this.availabilityCache.get(ieee.toLowerCase());
+
+        let status: DeviceStatus;
+        if (cachedAvail) {
+          status = cachedAvail.status;
+        } else if (existing?.status) {
+          status = existing.status;
+        } else if (dev.disabled === true) {
+          status = 'offline';
+        } else if (lastSeenMs !== null) {
+          // If last_seen is recent (< 2h for router, < 25h for battery end device) -> online
+          const threshold = isRouter ? 2 * 3600 * 1000 : 25 * 3600 * 1000;
+          status = now - lastSeenMs < threshold ? 'online' : 'offline';
+        } else {
+          // Default heuristic: if paired and interview completed, mark online
+          status = dev.interview_completed !== false ? 'online' : 'offline';
+        }
+
+        const effectiveLastSeen =
+          lastSeenMs ??
+          existing?.last_seen ??
+          (status === 'online' ? now : null);
 
         this.db.upsertDevice({
           ieee_address: ieee,
-          friendly_name: dev.friendly_name || ieee,
+          friendly_name: friendlyName,
           type: dev.type || 'EndDevice',
           model,
           vendor,
           power_source: powerSource,
-          status: existing?.status ?? 'offline',
+          status,
+          last_seen: effectiveLastSeen,
         });
 
         const updated = this.db.getDevice(ieee);
@@ -188,13 +235,54 @@ export class MqttHandler extends EventEmitter {
       if (id) {
         const dev = this.findDevice(id);
         if (dev) {
-          const status = payload.status === 'ok' ? 'success' : 'failure';
+          const isOk = payload.status === 'ok';
+          const status = isOk ? 'success' : 'failure';
           this.db.recordDiagnosticLog(
             dev.ieee_address,
             action,
             status,
             JSON.stringify(payload)
           );
+
+          // If ping response: update device online/offline status immediately!
+          if (action === 'ping') {
+            const now = Date.now();
+            if (isOk) {
+              const previousStatus = dev.status;
+              let durationOfflineMs: number | undefined;
+              if (previousStatus === 'offline') {
+                const lastEvents = this.db.getEventHistory(1, dev.ieee_address);
+                if (lastEvents.length > 0 && lastEvents[0].event_type === 'disconnected') {
+                  durationOfflineMs = Math.max(0, now - lastEvents[0].recorded_at);
+                }
+                this.db.recordEvent(dev.ieee_address, 'connected', durationOfflineMs, now);
+              }
+              this.db.upsertDevice({
+                ieee_address: dev.ieee_address,
+                status: 'online',
+                last_seen: now,
+                updated_at: now,
+              });
+              this.availabilityCache.set(dev.ieee_address.toLowerCase(), { status: 'online', timestamp: now });
+              this.availabilityCache.set(dev.friendly_name.toLowerCase(), { status: 'online', timestamp: now });
+            } else {
+              if (dev.status === 'online') {
+                this.db.recordEvent(dev.ieee_address, 'disconnected', undefined, now);
+              }
+              this.db.upsertDevice({
+                ieee_address: dev.ieee_address,
+                status: 'offline',
+                updated_at: now,
+              });
+              this.availabilityCache.set(dev.ieee_address.toLowerCase(), { status: 'offline', timestamp: now });
+              this.availabilityCache.set(dev.friendly_name.toLowerCase(), { status: 'offline', timestamp: now });
+            }
+
+            const updated = this.db.getDevice(dev.ieee_address);
+            if (updated) {
+              this.notify({ type: 'device_updated', data: updated });
+            }
+          }
         }
       }
 
@@ -223,12 +311,18 @@ export class MqttHandler extends EventEmitter {
 
     const newStatus: DeviceStatus =
       statusText.toLowerCase() === 'online' ? 'online' : 'offline';
+    const now = Date.now();
+
+    // Cache the availability regardless of whether the device exists in DB yet
+    this.availabilityCache.set(identifier.toLowerCase(), { status: newStatus, timestamp: now });
 
     const dev = this.findDevice(identifier);
     if (!dev) return;
 
+    // Also cache by IEEE if identifier was a friendly name
+    this.availabilityCache.set(dev.ieee_address.toLowerCase(), { status: newStatus, timestamp: now });
+
     const previousStatus = dev.status;
-    const now = Date.now();
 
     if (previousStatus !== newStatus) {
       if (newStatus === 'offline') {

@@ -345,6 +345,24 @@ describe('deviceUtils', () => {
       expect(html).toContain('Permit Join (120s)');
       expect(html).toContain('Zigbee Sentinel');
     });
+
+    it('renders Header with Vérifier l\'état button when onProbeNetwork is passed', async () => {
+      const { renderToString } = await import('react-dom/server');
+      const React = await import('react');
+      const { Header } = await import('../../src/components/Header');
+
+      const html = renderToString(
+        React.createElement(Header, {
+          bridgeStatus: { mqttConnected: true, bridge: 'online' },
+          devices: [],
+          permitJoinTimer: 0,
+          onTriggerPermitJoin: async () => true,
+          onProbeNetwork: async () => ({ success: true }),
+        })
+      );
+
+      expect(html).toContain('Vérifier l&#x27;état');
+    });
   });
 
   describe('DeviceCard component', () => {

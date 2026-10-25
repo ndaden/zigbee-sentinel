@@ -164,4 +164,25 @@ export const apiClient = {
     });
     return handleResponse<{ success: boolean; message: string; deviceCount: number }>(res);
   },
+
+  async probeNetwork(): Promise<{
+    success: boolean;
+    probedRouters: number;
+    onlineRouters: number;
+    jeedomSynced: number;
+    totalDevices: number;
+    onlineDevices: number;
+  }> {
+    const res = await fetch('/api/network/probe', {
+      method: 'POST',
+    });
+    return handleResponse<{
+      success: boolean;
+      probedRouters: number;
+      onlineRouters: number;
+      jeedomSynced: number;
+      totalDevices: number;
+      onlineDevices: number;
+    }>(res);
+  },
 };

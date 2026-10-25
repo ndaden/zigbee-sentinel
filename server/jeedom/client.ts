@@ -8,6 +8,26 @@ export interface JeedomEqLogic {
   humanName?: string;
   object_id?: string | number;
   configuration?: Record<string, any>;
+  status?: {
+    lastCommunication?: string;
+    state?: number;
+    warning?: number;
+    danger?: number;
+    [key: string]: any;
+  };
+}
+
+export interface JeedomStatusSyncResult {
+  success: boolean;
+  count: number;
+  online: number;
+  offline: number;
+  updated: Array<{
+    ieee: string;
+    name: string;
+    status: 'online' | 'offline';
+    lastCommunication?: string;
+  }>;
 }
 
 export interface JeedomSyncResult {
@@ -109,3 +129,29 @@ export function matchJeedomDeviceToZigbee(
 
   return null;
 }
+
+export function parseJeedomDate(dateStr?: string): number | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const isoFormatted = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T');
+  const parsed = new Date(isoFormatted).getTime();
+  return isNaN(parsed) || parsed <= 0 ? null : parsed;
+}
+
+export function evaluateJeedomDeviceStatus(
+  eqLogic: JeedomEqLogic,
+  deviceType?: string,
+  powerSource?: string | null,
+  now: number = Date.now()
+): { status: 'online' | 'offline'; lastSeen: number | null } | null {
+  const commTime = parseJeedomDate(eqLogic.status?.lastCommunication);
+  if (!commTime) return null;
+
+  const isRouter =
+    deviceType === 'Router' ||
+    powerSource?.toLowerCase() === 'mains';
+  const threshold = isRouter ? 2 * 3600 * 1000 : 25 * 3600 * 1000;
+
+  const status: 'online' | 'offline' = now - commTime < threshold ? 'online' : 'offline';
+  return { status, lastSeen: commTime };
+}
+

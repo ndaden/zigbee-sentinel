@@ -69,6 +69,14 @@ export interface UseZigbeeStateReturn {
   triggerClearDatabase: (
     resyncFromZ2m?: boolean
   ) => Promise<{ success: boolean; message: string; deviceCount: number }>;
+  triggerProbeNetwork: () => Promise<{
+    success: boolean;
+    probedRouters: number;
+    onlineRouters: number;
+    jeedomSynced: number;
+    totalDevices: number;
+    onlineDevices: number;
+  }>;
   triggerPermitJoin: (seconds?: number) => Promise<boolean>;
   runDiagnostic: (ieee: string) => Promise<DiagnosticReport>;
   fetchHistory: (ieee: string, limit?: number) => Promise<DeviceHistoryResponse>;
@@ -386,6 +394,14 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     []
   );
 
+  const triggerProbeNetwork = useCallback(async () => {
+    const res = await apiClient.probeNetwork();
+    if (res.success) {
+      await refresh();
+    }
+    return res;
+  }, [refresh]);
+
   const runDiagnostic = useCallback(async (ieee: string): Promise<DiagnosticReport> => {
     return apiClient.runDiagnostic(ieee);
   }, []);
@@ -410,6 +426,7 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     triggerRename,
     triggerJeedomSync,
     triggerClearDatabase,
+    triggerProbeNetwork,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,

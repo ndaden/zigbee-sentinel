@@ -207,6 +207,22 @@ export function runMqttMock(
       `${baseTopic}/bridge/devices`,
       Buffer.from(JSON.stringify(mockDevicesList))
     );
+    mqttService.handleMessage(
+      `${baseTopic}/Prise Salon/availability`,
+      Buffer.from('online')
+    );
+    mqttService.handleMessage(
+      `${baseTopic}/Ampoule Cuisine/availability`,
+      Buffer.from('offline')
+    );
+    mqttService.handleMessage(
+      `${baseTopic}/Capteur Temperature/availability`,
+      Buffer.from('online')
+    );
+    mqttService.handleMessage(
+      `${baseTopic}/Capteur Porte Entree/availability`,
+      Buffer.from('offline')
+    );
   };
 
   mqttService.on('publish', onPublish);

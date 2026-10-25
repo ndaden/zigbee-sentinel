@@ -196,6 +196,70 @@ describe('MqttHandler', () => {
     expect(logs.length).toBe(1);
     expect(logs[0].action_type).toBe('ping');
     expect(logs[0].status).toBe('success');
+
+    // Ping success should also transition status to online
+    const device = db.getDevice('0x002');
+    expect(device?.status).toBe('online');
+  });
+
+  it('should cache availability received BEFORE bridge/devices and apply it on discovery', () => {
+    // 1. Availability received before bridge/devices
+    handler.handleMessage('zigbee2mqtt/Ampoule Salon/availability', Buffer.from('online'));
+    handler.handleMessage('zigbee2mqtt/Capteur Porte/availability', Buffer.from('offline'));
+
+    // 2. bridge/devices arrives
+    const rawDevices = JSON.stringify([
+      {
+        ieee_address: '0x002',
+        friendly_name: 'Ampoule Salon',
+        type: 'Router',
+        power_source: 'Mains',
+      },
+      {
+        ieee_address: '0x003',
+        friendly_name: 'Capteur Porte',
+        type: 'EndDevice',
+        power_source: 'Battery',
+      },
+    ]);
+
+    handler.handleMessage('zigbee2mqtt/bridge/devices', Buffer.from(rawDevices));
+
+    expect(db.getDevice('0x002')?.status).toBe('online');
+    expect(db.getDevice('0x003')?.status).toBe('offline');
+  });
+
+  it('should evaluate status based on last_seen and disabled in bridge/devices', () => {
+    const now = Date.now();
+    const rawDevices = JSON.stringify([
+      {
+        ieee_address: '0x010',
+        friendly_name: 'Capteur Recent',
+        type: 'EndDevice',
+        power_source: 'Battery',
+        last_seen: new Date(now - 30 * 60 * 1000).toISOString(), // 30 mins ago (< 25h)
+      },
+      {
+        ieee_address: '0x011',
+        friendly_name: 'Capteur Ancien',
+        type: 'EndDevice',
+        power_source: 'Battery',
+        last_seen: new Date(now - 30 * 3600 * 1000).toISOString(), // 30h ago (> 25h)
+      },
+      {
+        ieee_address: '0x012',
+        friendly_name: 'Capteur Desactive',
+        type: 'EndDevice',
+        power_source: 'Battery',
+        disabled: true,
+      },
+    ]);
+
+    handler.handleMessage('zigbee2mqtt/bridge/devices', Buffer.from(rawDevices));
+
+    expect(db.getDevice('0x010')?.status).toBe('online');
+    expect(db.getDevice('0x011')?.status).toBe('offline');
+    expect(db.getDevice('0x012')?.status).toBe('offline');
   });
 
   it('should automatically restore identity and rename device on bridge/event device_joined', async () => {
@@ -353,6 +417,16 @@ describe('MqttService and runMqttMock', () => {
 
     service.resyncDevices();
     expect(db.getDevices().length).toBe(4);
+
+    mockCtrl.stop();
+  });
+
+  it('should probe all routers and return total and online count', async () => {
+    const mockCtrl = runMqttMock(service, db);
+
+    const probeResult = await service.probeAllRouters(2);
+    expect(probeResult.total).toBe(2); // Prise Salon + Ampoule Cuisine
+    expect(probeResult.online).toBe(1); // Prise Salon responds ok, Ampoule Cuisine is offline in mock
 
     mockCtrl.stop();
   });

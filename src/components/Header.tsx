@@ -12,6 +12,7 @@ import {
   Power,
   Link2,
   Trash2,
+  Activity,
 } from 'lucide-react';
 import type { BridgeStatus, ZigbeeDevice } from '../types/device';
 import { calculateDeviceStats } from '../utils/deviceUtils';
@@ -24,6 +25,7 @@ export interface HeaderProps {
   onTriggerRestartBridge?: () => Promise<{ success: boolean; message: string }>;
   onOpenJeedomSync?: () => void;
   onOpenClearDatabase?: () => void;
+  onProbeNetwork?: () => Promise<any>;
   isPermitJoinLoading?: boolean;
 }
 
@@ -35,10 +37,12 @@ export const Header: React.FC<HeaderProps> = ({
   onTriggerRestartBridge,
   onOpenJeedomSync,
   onOpenClearDatabase,
+  onProbeNetwork,
   isPermitJoinLoading = false,
 }) => {
   const [internalLoading, setInternalLoading] = useState(false);
   const [isRestartingBridge, setIsRestartingBridge] = useState(false);
+  const [isProbingNetwork, setIsProbingNetwork] = useState(false);
   const stats = calculateDeviceStats(devices);
 
   const isMqttConnected = Boolean(bridgeStatus?.mqttConnected);
@@ -68,6 +72,16 @@ export const Header: React.FC<HeaderProps> = ({
       await onTriggerRestartBridge();
     } finally {
       setIsRestartingBridge(false);
+    }
+  };
+
+  const handleProbeClick = async () => {
+    if (isProbingNetwork || !onProbeNetwork) return;
+    setIsProbingNetwork(true);
+    try {
+      await onProbeNetwork();
+    } finally {
+      setIsProbingNetwork(false);
     }
   };
 
@@ -170,6 +184,20 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Power className={`h-3.5 w-3.5 ${isRestartingBridge ? 'animate-spin text-indigo-400' : ''}`} />
                 <span>{isRestartingBridge ? 'Redémarrage...' : 'Redémarrer Zigbee'}</span>
+              </button>
+            )}
+
+            {/* Probe Network Button */}
+            {onProbeNetwork && (
+              <button
+                type="button"
+                onClick={handleProbeClick}
+                disabled={isProbingNetwork}
+                title="Sonder la connectivité radio des routeurs et synchroniser l'état réel"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/50 hover:bg-emerald-900/70 text-emerald-300 hover:text-white border border-emerald-500/30 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <Activity className={`h-3.5 w-3.5 ${isProbingNetwork ? 'animate-spin text-emerald-400' : 'text-emerald-400'}`} />
+                <span>{isProbingNetwork ? 'Vérification...' : "Vérifier l'état"}</span>
               </button>
             )}
 

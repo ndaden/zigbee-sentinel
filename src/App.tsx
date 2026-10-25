@@ -33,6 +33,7 @@ export const App: React.FC = () => {
     triggerRestartBridge,
     triggerJeedomSync,
     triggerClearDatabase,
+    triggerProbeNetwork,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,
@@ -175,6 +176,26 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleProbeNetwork = async () => {
+    try {
+      showNotification('Vérification de la connectivité du réseau Zigbee en cours...', 'info');
+      const res = await triggerProbeNetwork();
+      if (res.success) {
+        showNotification(
+          `Vérification terminée : ${res.onlineDevices}/${res.totalDevices} périphériques en ligne (${res.onlineRouters}/${res.probedRouters} routeurs répondent${
+            res.jeedomSynced > 0 ? `, ${res.jeedomSynced} vérifiés via Jeedom` : ''
+          }).`,
+          'success'
+        );
+      }
+    } catch (err: any) {
+      showNotification(
+        err?.message || 'Erreur lors de la vérification du réseau',
+        'error'
+      );
+    }
+  };
+
   const handlePermitJoin = async (seconds: number = 120): Promise<boolean> => {
     const success = await triggerPermitJoin(seconds);
     if (success) {
@@ -236,6 +257,7 @@ export const App: React.FC = () => {
         onTriggerRestartBridge={handleRestartBridge}
         onOpenJeedomSync={() => setIsJeedomSyncOpen(true)}
         onOpenClearDatabase={() => setIsClearDatabaseOpen(true)}
+        onProbeNetwork={handleProbeNetwork}
       />
 
       {/* Main Content */}

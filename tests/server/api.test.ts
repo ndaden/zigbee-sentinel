@@ -320,6 +320,20 @@ describe('Fastify REST API & WebSocket Server', () => {
       const body = JSON.parse(res.payload);
       expect(body.success).toBe(true);
     });
+
+    it('POST /api/network/probe should probe routers and return online counts', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/network/probe',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.probedRouters).toBeDefined();
+      expect(body.onlineRouters).toBeDefined();
+      expect(body.totalDevices).toBeDefined();
+      expect(body.onlineDevices).toBeDefined();
+    });
   });
 
   describe('WebSocket Server', () => {

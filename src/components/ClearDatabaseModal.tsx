@@ -120,8 +120,8 @@ export const ClearDatabaseModal: React.FC<ClearDatabaseModalProps> = ({
                 <p className="text-slate-400">
                   {resyncFromZ2m ? (
                     <span className="text-indigo-300">
-                      Zigbee Sentinel redemandera la liste actuelle des appareils
-                      auprès du broker MQTT après la purge.
+                      Zigbee Sentinel rechargera la liste Zigbee2MQTT et récupérera
+                      l&apos;état réel des équipements (disponibilité MQTT, sondage radio et Jeedom).
                     </span>
                   ) : (
                     <span>

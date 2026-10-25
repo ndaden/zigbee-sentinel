@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchJeedomDevices,
   matchJeedomDeviceToZigbee,
+  parseJeedomDate,
+  evaluateJeedomDeviceStatus,
   JeedomEqLogic,
 } from '../../server/jeedom/client.js';
 
@@ -158,6 +160,64 @@ describe('Jeedom JSON-RPC Client', () => {
       await expect(
         fetchJeedomDevices('http://127.0.0.1', 'wrong_key')
       ).rejects.toThrow(/Erreur API Jeedom : Invalid API Key/);
+    });
+  });
+
+  describe('parseJeedomDate', () => {
+    it('parses space-separated and ISO dates into epoch milliseconds', () => {
+      expect(parseJeedomDate('2026-10-25 20:15:30')).toBeGreaterThan(0);
+      expect(parseJeedomDate('2026-10-25T20:15:30Z')).toBeGreaterThan(0);
+      expect(parseJeedomDate(undefined)).toBeNull();
+      expect(parseJeedomDate('invalid')).toBeNull();
+    });
+  });
+
+  describe('evaluateJeedomDeviceStatus', () => {
+    it('returns null if eqLogic has no lastCommunication', () => {
+      const eq: JeedomEqLogic = { id: 1, name: 'Capteur' };
+      expect(evaluateJeedomDeviceStatus(eq)).toBeNull();
+    });
+
+    it('returns online if battery sensor communicated within 25 hours', () => {
+      const now = Date.now();
+      const recentDate = new Date(now - 2 * 3600 * 1000).toISOString();
+      const eq: JeedomEqLogic = {
+        id: 1,
+        name: 'Capteur Temp',
+        status: { lastCommunication: recentDate },
+      };
+
+      const result = evaluateJeedomDeviceStatus(eq, 'EndDevice', 'Battery', now);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('online');
+    });
+
+    it('returns offline if battery sensor communicated more than 25 hours ago', () => {
+      const now = Date.now();
+      const oldDate = new Date(now - 26 * 3600 * 1000).toISOString();
+      const eq: JeedomEqLogic = {
+        id: 1,
+        name: 'Capteur Temp',
+        status: { lastCommunication: oldDate },
+      };
+
+      const result = evaluateJeedomDeviceStatus(eq, 'EndDevice', 'Battery', now);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('offline');
+    });
+
+    it('returns online if router communicated within 2 hours', () => {
+      const now = Date.now();
+      const recentDate = new Date(now - 30 * 60 * 1000).toISOString();
+      const eq: JeedomEqLogic = {
+        id: 2,
+        name: 'Prise',
+        status: { lastCommunication: recentDate },
+      };
+
+      const result = evaluateJeedomDeviceStatus(eq, 'Router', 'Mains', now);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('online');
     });
   });
 });

@@ -17,6 +17,7 @@ export interface MqttServiceOptions {
 export class MqttService extends EventEmitter {
   public readonly handler: MqttHandler;
   public readonly baseTopic: string;
+  private readonly db: DatabaseService;
   private readonly brokerUrl: string;
   private readonly username?: string;
   private readonly password?: string;
@@ -44,6 +45,7 @@ export class MqttService extends EventEmitter {
       /\/+$/,
       ''
     );
+    this.db = options.db;
     this.brokerUrl = options.brokerUrl || process.env.MQTT_URL || 'mqtt://127.0.0.1:1883';
 
     let username = options.username || process.env.MQTT_USERNAME;
@@ -525,13 +527,51 @@ export class MqttService extends EventEmitter {
     }
 
     if (this.client && this.connected) {
-      const topic = `${this.baseTopic}/bridge/devices`;
-      this.client.unsubscribe(topic, (err) => {
+      const topics = [
+        `${this.baseTopic}/bridge/#`,
+        `${this.baseTopic}/+`,
+        `${this.baseTopic}/+/availability`,
+      ];
+      this.client.unsubscribe(topics, (err) => {
         if (!err && this.client) {
-          this.client.subscribe(topic);
+          this.client.subscribe(topics);
         }
       });
     }
+  }
+
+  async probeAllRouters(concurrency: number = 3): Promise<{ total: number; online: number }> {
+    const all = this.db.getDevices();
+    const routers = all.filter(
+      (d) => d.type === 'Router' || d.power_source?.toLowerCase() === 'mains'
+    );
+    if (routers.length === 0) {
+      return { total: 0, online: 0 };
+    }
+
+    let onlineCount = 0;
+    const queue = [...routers];
+
+    const worker = async () => {
+      while (queue.length > 0) {
+        const dev = queue.shift();
+        if (!dev) break;
+        try {
+          const success = await this.pingDevice(dev.friendly_name, 3000);
+          if (success) {
+            onlineCount++;
+          }
+        } catch {
+          // Ignore individual ping errors
+        }
+      }
+    };
+
+    const workerCount = Math.min(concurrency, routers.length);
+    const workers = Array.from({ length: workerCount }, () => worker());
+    await Promise.all(workers);
+
+    return { total: routers.length, online: onlineCount };
   }
 
   async close(): Promise<void> {
