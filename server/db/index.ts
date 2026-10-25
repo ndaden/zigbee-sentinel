@@ -333,6 +333,22 @@ export class DatabaseService {
     purgeTx(cutoff);
   }
 
+  clearAllData(): void {
+    const clearTx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM history_battery').run();
+      this.db.prepare('DELETE FROM history_events').run();
+      this.db.prepare('DELETE FROM diagnostic_logs').run();
+      this.db.prepare('DELETE FROM pending_restorations').run();
+      this.db.prepare('DELETE FROM devices').run();
+    });
+    clearTx();
+    try {
+      this.db.pragma('vacuum');
+    } catch {
+      // Ignore vacuum failure (e.g. in-memory or transaction)
+    }
+  }
+
   close(): void {
     this.db.close();
   }

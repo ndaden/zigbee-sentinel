@@ -202,7 +202,15 @@ export function runMqttMock(
     }
   };
 
+  const onResyncMock = () => {
+    mqttService.handleMessage(
+      `${baseTopic}/bridge/devices`,
+      Buffer.from(JSON.stringify(mockDevicesList))
+    );
+  };
+
   mqttService.on('publish', onPublish);
+  mqttService.on('resync_mock', onResyncMock);
 
   // 7. Periodic updates (fluctuates sensor slightly in background)
   const timer = setInterval(() => {
@@ -233,6 +241,7 @@ export function runMqttMock(
     stop: () => {
       clearInterval(timer);
       mqttService.off('publish', onPublish);
+      mqttService.off('resync_mock', onResyncMock);
     },
   };
 }

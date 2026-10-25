@@ -153,4 +153,15 @@ export const apiClient = {
       synced: Array<{ ieee: string; previousName: string; newName: string }>;
     }>(res);
   },
+
+  async clearDatabase(
+    resyncFromZ2m: boolean = false
+  ): Promise<{ success: boolean; message: string; deviceCount: number }> {
+    const res = await fetch('/api/database/clear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resyncFromZ2m }),
+    });
+    return handleResponse<{ success: boolean; message: string; deviceCount: number }>(res);
+  },
 };

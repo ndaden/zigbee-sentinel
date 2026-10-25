@@ -518,6 +518,22 @@ export class MqttService extends EventEmitter {
     });
   }
 
+  resyncDevices(): void {
+    if (this.isMock) {
+      this.emit('resync_mock');
+      return;
+    }
+
+    if (this.client && this.connected) {
+      const topic = `${this.baseTopic}/bridge/devices`;
+      this.client.unsubscribe(topic, (err) => {
+        if (!err && this.client) {
+          this.client.subscribe(topic);
+        }
+      });
+    }
+  }
+
   async close(): Promise<void> {
     return new Promise((resolve) => {
       if (this.client) {

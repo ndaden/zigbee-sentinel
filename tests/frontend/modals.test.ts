@@ -4,6 +4,7 @@ import { renderToString } from 'react-dom/server';
 import { DiagnosticModal } from '../../src/components/DiagnosticModal';
 import { HistoryModal } from '../../src/components/HistoryModal';
 import { JeedomSyncModal } from '../../src/components/JeedomSyncModal';
+import { ClearDatabaseModal } from '../../src/components/ClearDatabaseModal';
 import type {
   ZigbeeDevice,
   DiagnosticReport,
@@ -418,5 +419,34 @@ describe('JeedomSyncModal component', () => {
       })
     );
     expect(html).toBe('');
+  });
+});
+
+describe('ClearDatabaseModal component', () => {
+  it('renders null when isOpen is false', () => {
+    const html = renderToString(
+      React.createElement(ClearDatabaseModal, {
+        isOpen: false,
+        onClose: vi.fn(),
+        onConfirm: vi.fn(),
+      })
+    );
+    expect(html).toBe('');
+  });
+
+  it('renders title, warning, checkbox option, and action buttons when open', () => {
+    const html = renderToString(
+      React.createElement(ClearDatabaseModal, {
+        isOpen: true,
+        onClose: vi.fn(),
+        onConfirm: vi.fn(),
+      })
+    );
+
+    expect(html).toContain('Vider la base de données');
+    expect(html).toContain('Remise à zéro des périphériques &amp; historiques');
+    expect(html).toContain('Action irréversible sur la base locale SQLite');
+    expect(html).toContain('Resynchroniser immédiatement depuis Zigbee2MQTT');
+    expect(html).toContain('Annuler');
   });
 });

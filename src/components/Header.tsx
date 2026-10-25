@@ -11,6 +11,7 @@ import {
   Loader2,
   Power,
   Link2,
+  Trash2,
 } from 'lucide-react';
 import type { BridgeStatus, ZigbeeDevice } from '../types/device';
 import { calculateDeviceStats } from '../utils/deviceUtils';
@@ -22,6 +23,7 @@ export interface HeaderProps {
   onTriggerPermitJoin: (seconds?: number) => Promise<boolean>;
   onTriggerRestartBridge?: () => Promise<{ success: boolean; message: string }>;
   onOpenJeedomSync?: () => void;
+  onOpenClearDatabase?: () => void;
   isPermitJoinLoading?: boolean;
 }
 
@@ -32,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTriggerPermitJoin,
   onTriggerRestartBridge,
   onOpenJeedomSync,
+  onOpenClearDatabase,
   isPermitJoinLoading = false,
 }) => {
   const [internalLoading, setInternalLoading] = useState(false);
@@ -180,6 +183,19 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Link2 className="h-3.5 w-3.5 text-indigo-400" />
                 <span>Sync Jeedom</span>
+              </button>
+            )}
+
+            {/* Clear Database Button */}
+            {onOpenClearDatabase && (
+              <button
+                type="button"
+                onClick={onOpenClearDatabase}
+                title="Vider la base de données et réinitialiser la liste des périphériques"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 transition-colors shadow-sm"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                <span>Vider la base</span>
               </button>
             )}
           </div>

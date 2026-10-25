@@ -343,4 +343,17 @@ describe('MqttService and runMqttMock', () => {
     const result = await service.renameDevice('0x00158d0001aaaa04', 'Capteur Porte Renomme');
     expect(result).toBe(true);
   });
+
+  it('should resync devices when resyncDevices is triggered', async () => {
+    const mockCtrl = runMqttMock(service, db);
+    expect(db.getDevices().length).toBe(4);
+
+    db.clearAllData();
+    expect(db.getDevices().length).toBe(0);
+
+    service.resyncDevices();
+    expect(db.getDevices().length).toBe(4);
+
+    mockCtrl.stop();
+  });
 });

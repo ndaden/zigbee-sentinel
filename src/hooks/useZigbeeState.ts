@@ -66,6 +66,9 @@ export interface UseZigbeeStateReturn {
     totalJeedomDevices: number;
     synced: Array<{ ieee: string; previousName: string; newName: string }>;
   }>;
+  triggerClearDatabase: (
+    resyncFromZ2m?: boolean
+  ) => Promise<{ success: boolean; message: string; deviceCount: number }>;
   triggerPermitJoin: (seconds?: number) => Promise<boolean>;
   runDiagnostic: (ieee: string) => Promise<DiagnosticReport>;
   fetchHistory: (ieee: string, limit?: number) => Promise<DeviceHistoryResponse>;
@@ -365,6 +368,24 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     [refresh]
   );
 
+  const triggerClearDatabase = useCallback(
+    async (
+      resyncFromZ2m: boolean = false
+    ): Promise<{ success: boolean; message: string; deviceCount: number }> => {
+      try {
+        const res = await apiClient.clearDatabase(resyncFromZ2m);
+        if (res.success && !resyncFromZ2m) {
+          setDevices([]);
+        }
+        return res;
+      } catch (err) {
+        console.error('[useZigbeeState] Clear database failed:', err);
+        throw err;
+      }
+    },
+    []
+  );
+
   const runDiagnostic = useCallback(async (ieee: string): Promise<DiagnosticReport> => {
     return apiClient.runDiagnostic(ieee);
   }, []);
@@ -388,6 +409,7 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     triggerRestartBridge,
     triggerRename,
     triggerJeedomSync,
+    triggerClearDatabase,
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,

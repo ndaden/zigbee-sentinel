@@ -201,4 +201,29 @@ describe('DatabaseService', () => {
       expect(db.getPendingRestoration(ieee3)).toBeNull();
     });
   });
+
+  describe('clearAllData', () => {
+    it('should completely empty all devices, history, logs, and pending restorations', () => {
+      const ieee = '0x00158d0001a2b3c4';
+      db.upsertDevice({ ieee_address: ieee, friendly_name: 'Capteur Salon', type: 'EndDevice' });
+      db.recordBattery(ieee, 90);
+      db.recordEvent(ieee, 'connected');
+      db.recordDiagnosticLog(ieee, 'ping', 'success');
+      db.savePendingRestoration(ieee, 'Capteur Salon', '[Salon] Capteur Temp', 300);
+
+      expect(db.getDevices().length).toBe(1);
+      expect(db.getBatteryHistory(ieee).length).toBe(1);
+      expect(db.getEventHistory().length).toBe(1);
+      expect(db.getDiagnosticLogs(ieee).length).toBe(1);
+      expect(db.getPendingRestoration(ieee)).not.toBeNull();
+
+      db.clearAllData();
+
+      expect(db.getDevices().length).toBe(0);
+      expect(db.getBatteryHistory(ieee).length).toBe(0);
+      expect(db.getEventHistory().length).toBe(0);
+      expect(db.getDiagnosticLogs(ieee).length).toBe(0);
+      expect(db.getPendingRestoration(ieee)).toBeNull();
+    });
+  });
 });

@@ -455,6 +455,27 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     });
   });
 
+  app.post<{ Body?: { resyncFromZ2m?: boolean } }>(
+    '/api/database/clear',
+    async (req, reply) => {
+      const resyncFromZ2m = Boolean(req.body?.resyncFromZ2m);
+
+      db.clearAllData();
+
+      wsManager.broadcast({ type: 'bridge_devices', data: [] });
+
+      if (resyncFromZ2m && mqttService) {
+        mqttService.resyncDevices();
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: 'Base de données vidée avec succès. La liste des périphériques a été réinitialisée.',
+        deviceCount: db.getDevices().length,
+      });
+    }
+  );
+
   // Serve static files from dist/client if available
   const distPath = path.resolve(process.cwd(), 'dist/client');
   if (

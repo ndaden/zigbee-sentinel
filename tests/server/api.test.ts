@@ -294,6 +294,32 @@ describe('Fastify REST API & WebSocket Server', () => {
         if (oldKey) process.env.JEEDOM_API_KEY = oldKey;
       }
     });
+
+    it('POST /api/database/clear should empty all database tables and reset list to zero', async () => {
+      expect(db.getDevices().length).toBeGreaterThanOrEqual(1);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/database/clear',
+        payload: { resyncFromZ2m: false },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+      expect(body.deviceCount).toBe(0);
+      expect(db.getDevices().length).toBe(0);
+    });
+
+    it('POST /api/database/clear with resyncFromZ2m: true should trigger resync', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/database/clear',
+        payload: { resyncFromZ2m: true },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.success).toBe(true);
+    });
   });
 
   describe('WebSocket Server', () => {
