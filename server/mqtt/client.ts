@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import mqtt, { type MqttClient } from 'mqtt';
 import { DatabaseService } from '../db/index.js';
 import { MqttHandler, type MqttListener } from './handlers.js';
+import type { NetworkMapData } from '../types.js';
 
 export interface MqttServiceOptions {
   brokerUrl?: string;
@@ -572,6 +573,52 @@ export class MqttService extends EventEmitter {
     await Promise.all(workers);
 
     return { total: routers.length, online: onlineCount };
+  }
+
+  async requestNetworkMap(
+    routes: boolean = false,
+    timeoutMs: number = 25000
+  ): Promise<NetworkMapData> {
+    const reqTopic = `${this.baseTopic}/bridge/request/networkmap`;
+
+    return new Promise<NetworkMapData>((resolve, reject) => {
+      let resolved = false;
+      let timer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        this.handler.off('network_map_updated', onUpdate);
+      };
+
+      const onUpdate = (data: NetworkMapData) => {
+        resolved = true;
+        cleanup();
+        resolve(data);
+      };
+
+      timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          const cached = this.db.getNetworkMap();
+          if (cached) {
+            resolve(cached);
+          } else {
+            reject(new Error('Le scan de la topologie réseau a expiré'));
+          }
+        }
+      }, timeoutMs);
+
+      this.handler.on('network_map_updated', onUpdate);
+
+      this.publish(reqTopic, JSON.stringify({ type: 'raw', routes })).catch((err) => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          reject(err);
+        }
+      });
+    });
   }
 
   async close(): Promise<void> {

@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS pending_restorations (
     status TEXT NOT NULL DEFAULT 'pending'
 );
 
+CREATE TABLE IF NOT EXISTS network_map_cache (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_devices_friendly_name ON devices(friendly_name);
 CREATE INDEX IF NOT EXISTS idx_history_battery_ieee ON history_battery(ieee_address, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_events_ieee ON history_events(ieee_address, recorded_at DESC);

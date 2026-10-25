@@ -26,6 +26,8 @@ export interface HeaderProps {
   onOpenJeedomSync?: () => void;
   onOpenClearDatabase?: () => void;
   onProbeNetwork?: () => Promise<any>;
+  currentView?: 'list' | 'map';
+  onViewChange?: (view: 'list' | 'map') => void;
   isPermitJoinLoading?: boolean;
 }
 
@@ -38,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenJeedomSync,
   onOpenClearDatabase,
   onProbeNetwork,
+  currentView = 'list',
+  onViewChange,
   isPermitJoinLoading = false,
 }) => {
   const [internalLoading, setInternalLoading] = useState(false);
@@ -111,6 +115,36 @@ export const Header: React.FC<HeaderProps> = ({
               </p>
             </div>
           </div>
+
+          {/* View Switcher Tabs (Liste vs Topologie Réseau) */}
+          {onViewChange && (
+            <div className="inline-flex rounded-xl bg-slate-950/80 p-1 border border-slate-800 shadow-inner">
+              <button
+                type="button"
+                onClick={() => onViewChange('list')}
+                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  currentView === 'list'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Liste</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewChange('map')}
+                className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  currentView === 'map'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Radio className="h-3.5 w-3.5" />
+                <span>Topologie Réseau</span>
+              </button>
+            </div>
+          )}
 
           {/* Status indicators & Permit Join Button */}
           <div className="flex flex-wrap items-center gap-3">

@@ -4,6 +4,7 @@ import type {
   BridgeStatus,
   DiagnosticReport,
   DeviceHistoryResponse,
+  NetworkMapData,
 } from '../types/device';
 import { apiClient } from '../api/client';
 
@@ -80,12 +81,16 @@ export interface UseZigbeeStateReturn {
   triggerPermitJoin: (seconds?: number) => Promise<boolean>;
   runDiagnostic: (ieee: string) => Promise<DiagnosticReport>;
   fetchHistory: (ieee: string, limit?: number) => Promise<DeviceHistoryResponse>;
+  networkMap: NetworkMapData | null;
+  fetchNetworkMap: () => Promise<NetworkMapData>;
+  scanNetworkMap: () => Promise<NetworkMapData>;
   refresh: () => Promise<void>;
 }
 
 export function useZigbeeState(): UseZigbeeStateReturn {
   const [devices, setDevices] = useState<ZigbeeDevice[]>([]);
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null);
+  const [networkMap, setNetworkMap] = useState<NetworkMapData | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [permitJoinTimer, setPermitJoinTimer] = useState<number>(0);
 
@@ -195,6 +200,12 @@ export function useZigbeeState(): UseZigbeeStateReturn {
               case 'bridge_devices': {
                 if (Array.isArray(message.data)) {
                   setDevices(message.data);
+                }
+                break;
+              }
+              case 'network_map_updated': {
+                if (message.data) {
+                  setNetworkMap(message.data);
                 }
                 break;
               }
@@ -413,11 +424,26 @@ export function useZigbeeState(): UseZigbeeStateReturn {
     []
   );
 
+  const fetchNetworkMap = useCallback(async (): Promise<NetworkMapData> => {
+    const res = await apiClient.fetchNetworkMap();
+    setNetworkMap(res);
+    return res;
+  }, []);
+
+  const scanNetworkMap = useCallback(async (): Promise<NetworkMapData> => {
+    const res = await apiClient.scanNetworkMap();
+    setNetworkMap(res);
+    return res;
+  }, []);
+
   return {
     devices,
     bridgeStatus,
     isConnected,
     permitJoinTimer,
+    networkMap,
+    fetchNetworkMap,
+    scanNetworkMap,
     triggerPing,
     triggerInterview,
     triggerConfigure,

@@ -262,6 +262,61 @@ describe('MqttHandler', () => {
     expect(db.getDevice('0x012')?.status).toBe('offline');
   });
 
+  it('should parse bridge/response/networkmap, save to DB, and notify listeners', () => {
+    db.upsertDevice({
+      ieee_address: '0x00158d0001aaaa01',
+      friendly_name: 'Prise Salon',
+      custom_name: '[Salon] Prise Lampe',
+      type: 'Router',
+      status: 'online',
+    });
+
+    const notifySpy = vi.fn();
+    handler.setListener(notifySpy);
+
+    const mockPayload = {
+      data: {
+        type: 'raw',
+        routes: false,
+        value: {
+          nodes: [
+            { ieeeAddr: '0x00124b001cd12345', friendlyName: 'Coordinator', type: 'Coordinator' },
+            { ieeeAddr: '0x00158d0001aaaa01', friendlyName: 'Prise Salon', type: 'Router' },
+          ],
+          links: [
+            {
+              source: { ieeeAddr: '0x00124b001cd12345', friendlyName: 'Coordinator' },
+              target: { ieeeAddr: '0x00158d0001aaaa01', friendlyName: 'Prise Salon' },
+              linkquality: 140,
+              lqi: 140,
+            },
+          ],
+        },
+      },
+      status: 'ok',
+    };
+
+    handler.handleMessage(
+      'zigbee2mqtt/bridge/response/networkmap',
+      Buffer.from(JSON.stringify(mockPayload))
+    );
+
+    const saved = db.getNetworkMap();
+    expect(saved).not.toBeNull();
+    expect(saved?.nodes.length).toBe(2);
+    expect(saved?.nodes.find((n) => n.ieeeAddr === '0x00158d0001aaaa01')?.customName).toBe(
+      '[Salon] Prise Lampe'
+    );
+    expect(saved?.links.length).toBe(1);
+    expect(saved?.links[0].linkquality).toBe(140);
+
+    expect(notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'network_map_updated',
+      })
+    );
+  });
+
   it('should automatically restore identity and rename device on bridge/event device_joined', async () => {
     const mockRename = vi.fn().mockResolvedValue(true);
     handler.setRenameCallback(mockRename);
@@ -427,6 +482,18 @@ describe('MqttService and runMqttMock', () => {
     const probeResult = await service.probeAllRouters(2);
     expect(probeResult.total).toBe(2); // Prise Salon + Ampoule Cuisine
     expect(probeResult.online).toBe(1); // Prise Salon responds ok, Ampoule Cuisine is offline in mock
+
+    mockCtrl.stop();
+  });
+
+  it('should request network map and resolve with mock response', async () => {
+    const mockCtrl = runMqttMock(service, db);
+
+    const mapData = await service.requestNetworkMap(false, 2000);
+    expect(mapData).toBeDefined();
+    expect(mapData.nodes.length).toBe(5);
+    expect(mapData.links.length).toBe(4);
+    expect(mapData.nodes.find((n) => n.type === 'Coordinator')).toBeDefined();
 
     mockCtrl.stop();
   });

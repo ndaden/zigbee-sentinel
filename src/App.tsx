@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useZigbeeState } from './hooks/useZigbeeState';
 import { Header } from './components/Header';
 import { FilterToolbar } from './components/FilterToolbar';
 import { DeviceList } from './components/DeviceList';
+import { NetworkMap } from './components/NetworkMap';
 import { DiagnosticModal } from './components/DiagnosticModal';
 import { HistoryModal } from './components/HistoryModal';
 import { JeedomSyncModal } from './components/JeedomSyncModal';
@@ -37,9 +38,13 @@ export const App: React.FC = () => {
     triggerPermitJoin,
     runDiagnostic,
     fetchHistory,
+    networkMap,
+    fetchNetworkMap,
+    scanNetworkMap,
     refresh,
   } = useZigbeeState();
 
+  const [currentView, setCurrentView] = useState<'list' | 'map'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [notifications, setNotifications] = useState<ToastNotification[]>([]);
@@ -47,6 +52,14 @@ export const App: React.FC = () => {
   const [selectedHistoryDevice, setSelectedHistoryDevice] = useState<ZigbeeDevice | null>(null);
   const [isJeedomSyncOpen, setIsJeedomSyncOpen] = useState(false);
   const [isClearDatabaseOpen, setIsClearDatabaseOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentView === 'map' && !networkMap) {
+      fetchNetworkMap().catch((err) =>
+        console.warn('[App] Could not fetch initial network map:', err)
+      );
+    }
+  }, [currentView, networkMap, fetchNetworkMap]);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = `${Date.now()}-${Math.random()}`;
@@ -258,27 +271,57 @@ export const App: React.FC = () => {
         onOpenJeedomSync={() => setIsJeedomSyncOpen(true)}
         onOpenClearDatabase={() => setIsClearDatabaseOpen(true)}
         onProbeNetwork={handleProbeNetwork}
+        currentView={currentView}
+        onViewChange={setCurrentView}
       />
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
-        {/* Filter Toolbar */}
-        <FilterToolbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-          counts={filterCounts}
-        />
+        {currentView === 'list' ? (
+          <>
+            {/* Filter Toolbar */}
+            <FilterToolbar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              counts={filterCounts}
+            />
 
-        {/* Device List Grid */}
-        <DeviceList
-          devices={filteredDevices}
-          onPing={handlePing}
-          onInterview={handleInterview}
-          onDiagnose={handleDiagnose}
-          onViewHistory={handleViewHistory}
-        />
+            {/* Device List Grid */}
+            <DeviceList
+              devices={filteredDevices}
+              onPing={handlePing}
+              onInterview={handleInterview}
+              onDiagnose={handleDiagnose}
+              onViewHistory={handleViewHistory}
+            />
+          </>
+        ) : (
+          /* Network Mesh Topology View */
+          <NetworkMap
+            data={networkMap}
+            devices={devices}
+            onScanMap={async () => {
+              showNotification('Scan de la topologie réseau en cours auprès de Zigbee2MQTT...', 'info');
+              try {
+                const res = await scanNetworkMap();
+                showNotification(
+                  `Topologie actualisée : ${res.nodes.length} nœuds et ${res.links.length} liaisons détectées.`,
+                  'success'
+                );
+                return res;
+              } catch (err: any) {
+                showNotification(err?.message || 'Erreur lors du scan radio', 'error');
+                throw err;
+              }
+            }}
+            onPing={handlePing}
+            onInterview={handleInterview}
+            onDiagnose={handleDiagnose}
+            onViewHistory={handleViewHistory}
+          />
+        )}
 
         {/* Interactive Modals */}
         {selectedDiagnosticDevice && (

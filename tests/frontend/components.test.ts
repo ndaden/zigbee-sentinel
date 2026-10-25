@@ -386,4 +386,36 @@ describe('deviceUtils', () => {
       expect(html).toContain('Réappairage...');
     });
   });
+
+  describe('NetworkMap component', () => {
+    it('renders NetworkMap with coordinator, nodes, and legend', async () => {
+      const { renderToString } = await import('react-dom/server');
+      const React = await import('react');
+      const { NetworkMap } = await import('../../src/components/NetworkMap');
+
+      const mockData = {
+        nodes: [
+          { ieeeAddr: '0x001', friendlyName: 'Coordinator', type: 'Coordinator' as const },
+          { ieeeAddr: '0x002', friendlyName: 'Prise Salon', type: 'Router' as const },
+        ],
+        links: [
+          { sourceIeee: '0x001', targetIeee: '0x002', linkquality: 140, lqi: 140 },
+        ],
+        updatedAt: Date.now(),
+      };
+
+      const html = renderToString(
+        React.createElement(NetworkMap, {
+          data: mockData,
+          devices: [],
+          onScanMap: async () => mockData,
+        })
+      );
+
+      expect(html).toContain('Topologie du Réseau Zigbee');
+      expect(html).toContain('Coordinator');
+      expect(html).toContain('Prise Salon');
+      expect(html).toContain('ConBee II (Coordinateur)');
+    });
+  });
 });

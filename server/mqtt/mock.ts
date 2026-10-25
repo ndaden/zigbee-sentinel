@@ -196,6 +196,85 @@ export function runMqttMock(
           `${baseTopic}/bridge/response/permit_join`,
           Buffer.from(JSON.stringify({ data: { time, value }, status: 'ok' }))
         );
+      } else if (topic === `${baseTopic}/bridge/request/networkmap`) {
+        const mockMap = {
+          data: {
+            type: 'raw',
+            routes: false,
+            value: {
+              nodes: [
+                {
+                  ieeeAddr: '0x00124b001cd12345',
+                  friendlyName: 'Coordinator',
+                  type: 'Coordinator',
+                  depth: 0,
+                },
+                {
+                  ieeeAddr: '0x00158d0001aaaa01',
+                  friendlyName: 'Prise Salon',
+                  type: 'Router',
+                  depth: 1,
+                },
+                {
+                  ieeeAddr: '0x00158d0001aaaa02',
+                  friendlyName: 'Ampoule Cuisine',
+                  type: 'Router',
+                  depth: 1,
+                },
+                {
+                  ieeeAddr: '0x00158d0001aaaa03',
+                  friendlyName: 'Capteur Temperature',
+                  type: 'EndDevice',
+                  depth: 2,
+                },
+                {
+                  ieeeAddr: '0x00158d0001aaaa04',
+                  friendlyName: 'Capteur Porte Entree',
+                  type: 'EndDevice',
+                  depth: 2,
+                },
+              ],
+              links: [
+                {
+                  source: { ieeeAddr: '0x00124b001cd12345', friendlyName: 'Coordinator' },
+                  target: { ieeeAddr: '0x00158d0001aaaa01', friendlyName: 'Prise Salon' },
+                  linkquality: 155,
+                  lqi: 155,
+                  relationship: 0,
+                },
+                {
+                  source: { ieeeAddr: '0x00124b001cd12345', friendlyName: 'Coordinator' },
+                  target: { ieeeAddr: '0x00158d0001aaaa02', friendlyName: 'Ampoule Cuisine' },
+                  linkquality: 95,
+                  lqi: 95,
+                  relationship: 0,
+                },
+                {
+                  source: { ieeeAddr: '0x00158d0001aaaa01', friendlyName: 'Prise Salon' },
+                  target: { ieeeAddr: '0x00158d0001aaaa03', friendlyName: 'Capteur Temperature' },
+                  linkquality: 110,
+                  lqi: 110,
+                  relationship: 1,
+                },
+                {
+                  source: { ieeeAddr: '0x00158d0001aaaa02', friendlyName: 'Ampoule Cuisine' },
+                  target: { ieeeAddr: '0x00158d0001aaaa04', friendlyName: 'Capteur Porte Entree' },
+                  linkquality: 25,
+                  lqi: 25,
+                  relationship: 1,
+                },
+              ],
+            },
+          },
+          status: 'ok',
+        };
+
+        setTimeout(() => {
+          mqttService.handleMessage(
+            `${baseTopic}/bridge/response/networkmap`,
+            Buffer.from(JSON.stringify(mockMap))
+          );
+        }, 50);
       }
     } catch {
       // Ignore unparseable

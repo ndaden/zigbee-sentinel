@@ -210,12 +210,18 @@ describe('DatabaseService', () => {
       db.recordEvent(ieee, 'connected');
       db.recordDiagnosticLog(ieee, 'ping', 'success');
       db.savePendingRestoration(ieee, 'Capteur Salon', '[Salon] Capteur Temp', 300);
+      db.saveNetworkMap({
+        nodes: [{ ieeeAddr: '0x001', friendlyName: 'Coordinator', type: 'Coordinator' }],
+        links: [],
+        updatedAt: Date.now(),
+      });
 
       expect(db.getDevices().length).toBe(1);
       expect(db.getBatteryHistory(ieee).length).toBe(1);
       expect(db.getEventHistory().length).toBe(1);
       expect(db.getDiagnosticLogs(ieee).length).toBe(1);
       expect(db.getPendingRestoration(ieee)).not.toBeNull();
+      expect(db.getNetworkMap()).not.toBeNull();
 
       db.clearAllData();
 
@@ -224,6 +230,47 @@ describe('DatabaseService', () => {
       expect(db.getEventHistory().length).toBe(0);
       expect(db.getDiagnosticLogs(ieee).length).toBe(0);
       expect(db.getPendingRestoration(ieee)).toBeNull();
+      expect(db.getNetworkMap()).toBeNull();
+    });
+  });
+
+  describe('saveNetworkMap and getNetworkMap', () => {
+    it('should save and retrieve network map data', () => {
+      expect(db.getNetworkMap()).toBeNull();
+
+      const mapData = {
+        nodes: [
+          {
+            ieeeAddr: '0x00124b001cd12345',
+            friendlyName: 'Coordinator',
+            type: 'Coordinator' as const,
+            depth: 0,
+          },
+          {
+            ieeeAddr: '0x00158d0001aaaa01',
+            friendlyName: 'Prise Salon',
+            type: 'Router' as const,
+            depth: 1,
+          },
+        ],
+        links: [
+          {
+            sourceIeee: '0x00124b001cd12345',
+            targetIeee: '0x00158d0001aaaa01',
+            linkquality: 150,
+            lqi: 150,
+          },
+        ],
+        updatedAt: Date.now(),
+      };
+
+      db.saveNetworkMap(mapData);
+
+      const retrieved = db.getNetworkMap();
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.nodes.length).toBe(2);
+      expect(retrieved?.links.length).toBe(1);
+      expect(retrieved?.links[0].linkquality).toBe(150);
     });
   });
 });

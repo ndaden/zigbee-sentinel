@@ -334,6 +334,29 @@ describe('Fastify REST API & WebSocket Server', () => {
       expect(body.totalDevices).toBeDefined();
       expect(body.onlineDevices).toBeDefined();
     });
+
+    it('GET /api/network/map should return network map or synthetic topology', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/network/map',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.nodes).toBeDefined();
+      expect(body.links).toBeDefined();
+      expect(body.nodes.some((n: any) => n.type === 'Coordinator')).toBe(true);
+    });
+
+    it('POST /api/network/map/scan should trigger scan and return topology', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/network/map/scan',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.nodes).toBeDefined();
+      expect(body.links).toBeDefined();
+    });
   });
 
   describe('WebSocket Server', () => {

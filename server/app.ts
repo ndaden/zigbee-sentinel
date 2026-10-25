@@ -13,6 +13,7 @@ import {
   matchJeedomDeviceToZigbee,
   evaluateJeedomDeviceStatus,
 } from './jeedom/client.js';
+import type { NetworkMapData, NetworkMapNode, NetworkMapLink } from './types.js';
 
 export interface BuildAppOptions {
   db?: DatabaseService;
@@ -22,6 +23,107 @@ export interface BuildAppOptions {
   enableStatic?: boolean;
   logger?: boolean | any;
   seedMock?: boolean;
+}
+
+export function generateSyntheticNetworkMap(
+  db: DatabaseService,
+  coordinatorInfo?: any
+): NetworkMapData {
+  const coordinatorIeee =
+    coordinatorInfo?.ieee_address ||
+    coordinatorInfo?.meta?.maintaddress ||
+    '0x00124b001cd12345';
+  const coordinatorType = coordinatorInfo?.type || 'ConBee II / RaspBee II';
+
+  const coordinatorNode: NetworkMapNode = {
+    ieeeAddr: coordinatorIeee,
+    friendlyName: 'Coordinateur ConBee II',
+    customName: `Passerelle Zigbee (${coordinatorType})`,
+    type: 'Coordinator',
+    status: 'online',
+    model: coordinatorType,
+    vendor: 'Dresden Elektronik',
+    powerSource: 'Mains',
+    depth: 0,
+    linkquality: 255,
+  };
+
+  const devices = db.getDevices();
+  const nodes: NetworkMapNode[] = [coordinatorNode];
+  const links: NetworkMapLink[] = [];
+
+  const routers = devices.filter(
+    (d) => d.type === 'Router' || d.power_source?.toLowerCase() === 'mains'
+  );
+  const endDevices = devices.filter(
+    (d) => d.type !== 'Router' && d.power_source?.toLowerCase() !== 'mains'
+  );
+
+  // Add routers connected to coordinator
+  for (const r of routers) {
+    nodes.push({
+      ieeeAddr: r.ieee_address,
+      friendlyName: r.friendly_name,
+      customName: r.custom_name,
+      type: 'Router',
+      status: r.status,
+      model: r.model,
+      vendor: r.vendor,
+      powerSource: r.power_source || 'Mains',
+      battery: r.battery,
+      linkquality: r.linkquality,
+      depth: 1,
+    });
+
+    links.push({
+      sourceIeee: coordinatorIeee,
+      targetIeee: r.ieee_address,
+      sourceName: coordinatorNode.friendlyName,
+      targetName: r.friendly_name,
+      linkquality: r.linkquality ?? 130,
+      lqi: r.linkquality ?? 130,
+      relationship: 0,
+    });
+  }
+
+  // Add end devices connected to a router (or coordinator if no routers)
+  for (let i = 0; i < endDevices.length; i++) {
+    const ed = endDevices[i];
+    const parent = routers.length > 0 ? routers[i % routers.length] : null;
+    const parentIeee = parent ? parent.ieee_address : coordinatorIeee;
+    const parentName = parent ? parent.friendly_name : coordinatorNode.friendlyName;
+
+    nodes.push({
+      ieeeAddr: ed.ieee_address,
+      friendlyName: ed.friendly_name,
+      customName: ed.custom_name,
+      type: 'EndDevice',
+      status: ed.status,
+      model: ed.model,
+      vendor: ed.vendor,
+      powerSource: ed.power_source || 'Battery',
+      battery: ed.battery,
+      linkquality: ed.linkquality,
+      depth: parent ? 2 : 1,
+    });
+
+    links.push({
+      sourceIeee: parentIeee,
+      targetIeee: ed.ieee_address,
+      sourceName: parentName,
+      targetName: ed.friendly_name,
+      linkquality: ed.linkquality ?? 85,
+      lqi: ed.linkquality ?? 85,
+      relationship: 1,
+    });
+  }
+
+  return {
+    nodes,
+    links,
+    updatedAt: Date.now(),
+    isSynthetic: true,
+  };
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -112,6 +214,34 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           mqttService.handleMessage(
             `${baseTopic}/bridge/response/permit_join`,
             Buffer.from(JSON.stringify({ data: { time, value }, status: 'ok' }))
+          );
+        } else if (topic === `${baseTopic}/bridge/request/networkmap`) {
+          const synthetic = generateSyntheticNetworkMap(db);
+          mqttService.handleMessage(
+            `${baseTopic}/bridge/response/networkmap`,
+            Buffer.from(
+              JSON.stringify({
+                data: {
+                  type: 'raw',
+                  routes: false,
+                  value: {
+                    nodes: synthetic.nodes.map((n) => ({
+                      ieeeAddr: n.ieeeAddr,
+                      friendlyName: n.friendlyName,
+                      type: n.type,
+                    })),
+                    links: synthetic.links.map((l) => ({
+                      source: { ieeeAddr: l.sourceIeee, friendlyName: l.sourceName },
+                      target: { ieeeAddr: l.targetIeee, friendlyName: l.targetName },
+                      linkquality: l.linkquality,
+                      lqi: l.lqi,
+                      relationship: l.relationship,
+                    })),
+                  },
+                },
+                status: 'ok',
+              })
+            )
           );
         }
       } catch {
@@ -478,6 +608,46 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       bridgeInfo: bridgeState.info,
       coordinator: bridgeState.info?.coordinator ?? null,
     });
+  });
+
+  app.get('/api/network/map', async (_req, reply) => {
+    const cached = db.getNetworkMap();
+    if (cached) {
+      return reply.status(200).send(cached);
+    }
+
+    const bridgeInfo = mqttService
+      ? mqttService.getHandler().getBridgeState().info
+      : null;
+    const synthetic = generateSyntheticNetworkMap(db, bridgeInfo?.coordinator);
+    return reply.status(200).send(synthetic);
+  });
+
+  app.post('/api/network/map/scan', async (_req, reply) => {
+    if (mqttService) {
+      try {
+        const timeoutMs = options.mockMqtt ? 1500 : 20000;
+        const mapData = await mqttService.requestNetworkMap(false, timeoutMs);
+        return reply.status(200).send(mapData);
+      } catch (err: any) {
+        console.warn(
+          '[API] Network map scan timed out or failed, using cached/synthetic:',
+          err.message
+        );
+      }
+    }
+
+    const cached = db.getNetworkMap();
+    if (cached) {
+      return reply.status(200).send(cached);
+    }
+
+    const bridgeInfo = mqttService
+      ? mqttService.getHandler().getBridgeState().info
+      : null;
+    const synthetic = generateSyntheticNetworkMap(db, bridgeInfo?.coordinator);
+    db.saveNetworkMap(synthetic);
+    return reply.status(200).send(synthetic);
   });
 
   app.post('/api/network/probe', async (_req, reply) => {

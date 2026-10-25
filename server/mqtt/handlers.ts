@@ -1,12 +1,19 @@
 import { EventEmitter } from 'node:events';
 import { DatabaseService } from '../db/index.js';
-import type { ZigbeeDevice, DeviceStatus } from '../types.js';
+import type {
+  ZigbeeDevice,
+  DeviceStatus,
+  NetworkMapNode,
+  NetworkMapLink,
+  NetworkMapData,
+} from '../types.js';
 
 export type MqttNotificationType =
   | 'device_updated'
   | 'device_restored'
   | 'bridge_status'
   | 'bridge_devices'
+  | 'network_map_updated'
   | 'diagnostic_response';
 
 export interface MqttNotification {
@@ -95,6 +102,8 @@ export class MqttHandler extends EventEmitter {
       this.handleBridgeState(message);
     } else if (relativeTopic === 'bridge/info') {
       this.handleBridgeInfo(message);
+    } else if (relativeTopic === 'bridge/response/networkmap') {
+      this.handleNetworkMapResponse(message);
     } else if (relativeTopic.startsWith('bridge/response/')) {
       this.handleBridgeResponse(relativeTopic, message);
     } else if (relativeTopic.endsWith('/availability')) {
@@ -223,6 +232,106 @@ export class MqttHandler extends EventEmitter {
       });
     } catch {
       // Malformed info ignored
+    }
+  }
+
+  private handleNetworkMapResponse(message: Buffer): void {
+    try {
+      const payload = JSON.parse(message.toString('utf-8'));
+      if (payload.status !== 'ok' || !payload.data?.value) {
+        return;
+      }
+
+      const rawValue = payload.data.value;
+      const rawNodes = Array.isArray(rawValue.nodes) ? rawValue.nodes : [];
+      const rawLinks = Array.isArray(rawValue.links) ? rawValue.links : [];
+
+      const devices = this.db.getDevices();
+      const deviceMap = new Map<string, ZigbeeDevice>();
+      for (const d of devices) {
+        deviceMap.set(d.ieee_address.toLowerCase(), d);
+        deviceMap.set(d.friendly_name.toLowerCase(), d);
+      }
+
+      const nodes: NetworkMapNode[] = rawNodes.map((n: any) => {
+        const ieee = n.ieeeAddr || n.ieee_address || '';
+        const friendlyName = n.friendlyName || n.friendly_name || ieee;
+        const matched =
+          deviceMap.get(ieee.toLowerCase()) || deviceMap.get(friendlyName.toLowerCase());
+
+        return {
+          ieeeAddr: ieee,
+          friendlyName,
+          customName: matched?.custom_name ?? null,
+          type: n.type || matched?.type || 'EndDevice',
+          status: matched?.status ?? (n.type === 'Coordinator' ? 'online' : 'online'),
+          model: matched?.model || n.definition?.model || null,
+          vendor: matched?.vendor || n.definition?.vendor || null,
+          powerSource:
+            matched?.power_source ||
+            (n.type === 'Router'
+              ? 'Mains'
+              : n.type === 'EndDevice'
+              ? 'Battery'
+              : 'Mains'),
+          battery: matched?.battery ?? null,
+          linkquality: matched?.linkquality ?? n.linkquality ?? null,
+          depth:
+            typeof n.depth === 'number'
+              ? n.depth
+              : n.type === 'Coordinator'
+              ? 0
+              : n.type === 'Router'
+              ? 1
+              : 2,
+        };
+      });
+
+      const links: NetworkMapLink[] = rawLinks.map((l: any) => {
+        const sourceIeee =
+          l.source?.ieeeAddr ||
+          l.sourceIeee ||
+          (typeof l.source === 'string' ? l.source : '');
+        const targetIeee =
+          l.target?.ieeeAddr ||
+          l.targetIeee ||
+          (typeof l.target === 'string' ? l.target : '');
+        const sourceName = l.source?.friendlyName || l.sourceName || sourceIeee;
+        const targetName = l.target?.friendlyName || l.targetName || targetIeee;
+
+        return {
+          sourceIeee,
+          targetIeee,
+          sourceName,
+          targetName,
+          linkquality:
+            typeof l.linkquality === 'number'
+              ? l.linkquality
+              : typeof l.lqi === 'number'
+              ? l.lqi
+              : 100,
+          lqi:
+            typeof l.lqi === 'number'
+              ? l.lqi
+              : typeof l.linkquality === 'number'
+              ? l.linkquality
+              : 100,
+          relationship: typeof l.relationship === 'number' ? l.relationship : 0,
+        };
+      });
+
+      const mapData: NetworkMapData = {
+        nodes,
+        links,
+        updatedAt: Date.now(),
+        isSynthetic: false,
+      };
+
+      this.db.saveNetworkMap(mapData);
+      this.emit('network_map_updated', mapData);
+      this.notify({ type: 'network_map_updated', data: mapData });
+    } catch (err) {
+      console.error('Failed to parse bridge/response/networkmap message:', err);
     }
   }
 

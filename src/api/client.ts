@@ -4,6 +4,7 @@ import type {
   DeviceHistoryResponse,
   BridgeStatus,
   ActionResult,
+  NetworkMapData,
 } from '../types/device';
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -184,5 +185,19 @@ export const apiClient = {
       totalDevices: number;
       onlineDevices: number;
     }>(res);
+  },
+
+  async fetchNetworkMap(): Promise<NetworkMapData> {
+    const res = await fetch('/api/network/map', {
+      method: 'GET',
+    });
+    return handleResponse<NetworkMapData>(res);
+  },
+
+  async scanNetworkMap(): Promise<NetworkMapData> {
+    const res = await fetch('/api/network/map/scan', {
+      method: 'POST',
+    });
+    return handleResponse<NetworkMapData>(res);
   },
 };

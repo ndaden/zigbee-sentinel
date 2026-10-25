@@ -89,3 +89,35 @@ export interface PendingRestoration {
   expires_at: number;
   status: 'pending' | 'restored' | 'expired';
 }
+
+export interface NetworkMapNode {
+  ieeeAddr: string;
+  friendlyName: string;
+  customName?: string | null;
+  type: 'Coordinator' | 'Router' | 'EndDevice' | string;
+  status?: 'online' | 'offline';
+  model?: string | null;
+  vendor?: string | null;
+  powerSource?: string | null;
+  battery?: number | null;
+  linkquality?: number | null;
+  depth?: number;
+}
+
+export interface NetworkMapLink {
+  sourceIeee: string;
+  targetIeee: string;
+  sourceName?: string;
+  targetName?: string;
+  linkquality: number;
+  lqi?: number;
+  relationship?: number;
+  relationshipName?: string;
+}
+
+export interface NetworkMapData {
+  nodes: NetworkMapNode[];
+  links: NetworkMapLink[];
+  updatedAt: number;
+  isSynthetic?: boolean;
+}

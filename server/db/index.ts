@@ -7,6 +7,7 @@ import type {
   EventRecord,
   DiagnosticLogRecord,
   PendingRestoration,
+  NetworkMapData,
 } from '../types.js';
 
 export class DatabaseService {
@@ -39,6 +40,9 @@ export class DatabaseService {
   private completeRestorationStmt: Database.Statement;
   private cancelRestorationStmt: Database.Statement;
   private cleanExpiredRestorationsStmt: Database.Statement;
+
+  private saveNetworkMapStmt: Database.Statement;
+  private getNetworkMapStmt: Database.Statement;
 
   constructor(dbPath: string = process.env.DATABASE_PATH || './data/zigbee_sentinel.db') {
     if (dbPath !== ':memory:') {
@@ -170,6 +174,13 @@ export class DatabaseService {
     this.cleanExpiredRestorationsStmt = this.db.prepare(`
       DELETE FROM pending_restorations WHERE status != 'pending' OR expires_at < ?
     `);
+
+    this.saveNetworkMapStmt = this.db.prepare(
+      'INSERT OR REPLACE INTO network_map_cache (id, data, updated_at) VALUES (1, ?, ?)'
+    );
+    this.getNetworkMapStmt = this.db.prepare(
+      'SELECT data FROM network_map_cache WHERE id = 1'
+    );
   }
 
   upsertDevice(device: Partial<ZigbeeDevice> & { ieee_address: string }): void {
@@ -333,12 +344,27 @@ export class DatabaseService {
     purgeTx(cutoff);
   }
 
+  saveNetworkMap(data: NetworkMapData): void {
+    this.saveNetworkMapStmt.run(JSON.stringify(data), data.updatedAt || Date.now());
+  }
+
+  getNetworkMap(): NetworkMapData | null {
+    const row = this.getNetworkMapStmt.get() as { data: string } | undefined;
+    if (!row || !row.data) return null;
+    try {
+      return JSON.parse(row.data) as NetworkMapData;
+    } catch {
+      return null;
+    }
+  }
+
   clearAllData(): void {
     const clearTx = this.db.transaction(() => {
       this.db.prepare('DELETE FROM history_battery').run();
       this.db.prepare('DELETE FROM history_events').run();
       this.db.prepare('DELETE FROM diagnostic_logs').run();
       this.db.prepare('DELETE FROM pending_restorations').run();
+      this.db.prepare('DELETE FROM network_map_cache').run();
       this.db.prepare('DELETE FROM devices').run();
     });
     clearTx();
